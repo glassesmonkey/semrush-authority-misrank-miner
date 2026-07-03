@@ -17,6 +17,16 @@ Use this skill to run the user's "high-authority misrank keyword" workflow:
 
 This skill does not automatically scrape Google SERPs. It outputs a prioritized SERP-review pool.
 
+## Quality Floor
+
+Do not reduce screening quality to save tokens, time, or agent work. Token spend is acceptable; false confidence and rework are more expensive.
+
+- Use subagents for first-pass and second-pass screening whenever the workflow reaches those stages.
+- Do not replace semantic screening with scripts, regex, keyword lists, or local shortcuts because the keyword set is large.
+- Use scripts only for deterministic work: scraping, dedupe, chunking, merging, canonical key generation, metric rehydration, priority derivation, validation, and report writing.
+- If the run is too large, slow, expensive, or operationally blocked, pause with a clear status and ask for a scope decision instead of silently degrading the method.
+- Do not summarize or sample a chunk when the workflow requires full chunk screening. Every chunk must be processed or explicitly marked failed/skipped in the run index.
+
 ## Default Inputs
 
 Ask for only what is missing:
