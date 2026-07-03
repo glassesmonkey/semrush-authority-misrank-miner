@@ -119,6 +119,12 @@ run("cluster-recommendations.mjs", [
   "--out-dir", siteDir,
 ]);
 
+const markdownReport = fs.readFileSync(path.join(siteDir, "serp-review-recommendations.md"), "utf8");
+assert(markdownReport.includes("# SERP 复核推荐词簇"), "markdown report should use Chinese title");
+assert(markdownReport.includes("优先级说明"), "markdown report should use Chinese priority explanation");
+assert(markdownReport.includes("页面形态"), "markdown report should use Chinese explanatory labels");
+assert(!markdownReport.includes("Priority meanings:"), "markdown report should not use English priority heading");
+
 const recommendationRows = readJsonl(path.join(siteDir, "serp-review-recommendation-keywords.jsonl"));
 assert(recommendationRows.length === 6, `expected 6 recommendation rows, got ${recommendationRows.length}`);
 assert(new Set(recommendationRows.map((row) => row.keyword.toLowerCase())).size === recommendationRows.length, "recommendation JSONL has duplicate keywords");

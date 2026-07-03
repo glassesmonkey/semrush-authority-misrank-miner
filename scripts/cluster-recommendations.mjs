@@ -268,6 +268,180 @@ const clusterDefinitions = [
   },
 ];
 
+const zhReportText = new Map([
+  ["B2B SaaS and platform selectors", {
+    name: "B2B SaaS 与平台选择器",
+    pageShape: "基于需求的对比数据库和推荐流程",
+    monetization: "SaaS 联盟分成、线索变现、赞助资料页",
+    why: "用户有明确采购意图，需要结构化筛选；论坛或 Reddit 结果常说明用户不信任普通厂商榜单。",
+  }],
+  ["B2B pricing and alternatives estimators", {
+    name: "B2B 定价与替代方案估算器",
+    pageShape: "可配置的价格估算器加替代方案矩阵",
+    monetization: "SaaS 联盟分成、B2B 线索、厂商赞助",
+    why: "价格意图明确，而且会被套餐、席位、插件、地区和使用场景明显影响。",
+  }],
+  ["Career salary and certification lead-gen", {
+    name: "职业薪资与证书线索",
+    pageShape: "按地区、资质、工作场景、班次和经验筛选的薪资估算器",
+    monetization: "课程线索、招聘线索、广告",
+    why: "用户期待的是可查询、可比较的估算结果，商业价值通常强于普通信息文章。",
+  }],
+  ["Auto repair quote estimators", {
+    name: "汽车维修报价估算器",
+    pageShape: "按车型、零件和工时估算的维修费用工具",
+    monetization: "维修线索、配件联盟分成、广告",
+    why: "用户在验证报价，车型、零件、工时和地区都会实质改变答案。",
+  }],
+  ["OBD and warning-light diagnostics", {
+    name: "OBD 与故障灯诊断",
+    pageShape: "带症状分支、紧急程度和维修费用区间的诊断查询工具",
+    monetization: "维修线索、配件联盟分成、广告",
+    why: "故障码和警示灯搜索通常是行动导向，天然适合做检查器或诊断流程。",
+  }],
+  ["Home and local-service cost estimators", {
+    name: "家居与本地服务费用估算器",
+    pageShape: "按项目范围生成费用估算和报价清单",
+    monetization: "服务线索、联盟分成、广告",
+    why: "查询有费用或服务意图，变量多，并且后续路径通常是报价或预约。",
+  }],
+  ["PC, hardware, and equipment configurators", {
+    name: "电脑、硬件与设备配置器",
+    pageShape: "兼容性检查器、装机配置器或套装选择器",
+    monetization: "联盟分成、赞助列表、广告",
+    why: "用户需要兼容性或配置输出，而不是泛泛阅读一篇文章。",
+  }],
+  ["Fantasy and sports data tools", {
+    name: "Fantasy 与体育数据工具",
+    pageShape: "数据驱动的计算器、交易分析器或对阵查询工具",
+    monetization: "广告、订阅、联盟分成",
+    why: "预期结果具有互动性和复用性，适合做动态工具而不是静态内容。",
+  }],
+  ["Work calendar and pay calculators", {
+    name: "工作日历与薪资换算器",
+    pageShape: "带假设条件和变体的日历或薪资计算器",
+    monetization: "广告、HR SaaS 线索",
+    why: "答案相对确定，但会被年份、地区、假期和工作制影响。",
+  }],
+  ["Travel, baggage, and document checkers", {
+    name: "旅行、行李与证件检查器",
+    pageShape: "规则检查器、尺寸可视化工具或出行清单生成器",
+    monetization: "联盟分成、广告、线索",
+    why: "用户有明确限制要满足，工具化结果比普通说明更直接。",
+  }],
+  ["Device and network troubleshooting workflows", {
+    name: "设备与网络故障排查流程",
+    pageShape: "按症状分支的排查器，包含测试步骤和下一步动作",
+    monetization: "维修线索、联盟分成、广告",
+    why: "结构化诊断流程通常比零散论坛经验更能完成任务。",
+  }],
+  ["Display and laptop symptom diagnostics", {
+    name: "屏幕与笔记本症状诊断",
+    pageShape: "按机型、外接显示器、驱动和维修路径分支的视觉症状检查器",
+    monetization: "维修线索、联盟分成、广告",
+    why: "用户需要根据症状判断原因和处理路径，互动诊断比论坛片段更有效。",
+  }],
+  ["Compatibility and replacement-part lookups", {
+    name: "兼容性与替换件查询",
+    pageShape: "按型号识别的兼容性查询或适配器选择器",
+    monetization: "联盟分成、广告",
+    why: "用户需要一个正确匹配结果，错误答案的代价比普通信息查询更高。",
+  }],
+  ["Templates, planners, and life-admin generators", {
+    name: "模板、计划器与生活事务生成器",
+    pageShape: "计划器、清单生成器或文档模板生成器",
+    monetization: "模板销售、广告、联盟分成",
+    why: "用户想要一个可直接使用的成品或计划，而不是只读建议。",
+  }],
+  ["Education, math, and chemistry solvers", {
+    name: "教育、数学与化学求解器",
+    pageShape: "分步计算器、公式生成器或练习模式",
+    monetization: "广告、课程、辅导线索",
+    why: "用户期待的是可计算、可验证或可练习的输出。",
+  }],
+  ["Music practice and instrument tools", {
+    name: "音乐练习与乐器工具",
+    pageShape: "互动调音器、和弦查询、指法训练器或练习计划",
+    monetization: "广告、课程、联盟分成",
+    why: "音频、图示和练习循环明显优于静态文章。",
+  }],
+  ["Training plans and interactive practice", {
+    name: "训练计划与互动练习",
+    pageShape: "个性化计划、练习工具或模拟器",
+    monetization: "广告、课程、联盟分成",
+    why: "用户需要可跟随、可执行或可互动的训练过程。",
+  }],
+  ["Food and kitchen calculators", {
+    name: "食物与厨房计算器",
+    pageShape: "时间、比例、份量、替代品和密度计算器",
+    monetization: "广告、联盟分成",
+    why: "答案会被食材、数量、设备和偏好影响，适合做输入输出工具。",
+  }],
+  ["Creative generators and visual libraries", {
+    name: "创意生成器与视觉素材库",
+    pageShape: "可筛选素材库、预览器、生成器或可视化工具",
+    monetization: "广告、联盟分成、模板",
+    why: "供给侧可以通过 CC0/可商用素材、生成预览和结构化筛选规模化。",
+  }],
+  ["File, media, and image utilities", {
+    name: "文件、媒体与图片工具",
+    pageShape: "带上传、预览、转换和导出的浏览器工具",
+    monetization: "广告、批量处理付费、联盟分成",
+    why: "用户想得到一个被转换或修复后的文件，而不是阅读教程。",
+  }],
+  ["Marketplace and resale decision tools", {
+    name: "市场与转售决策工具",
+    pageShape: "价值查询、收益计算器或平台选择器",
+    monetization: "联盟分成、线索、广告",
+    why: "用户想判断去哪里卖、值多少钱或怎么获得更好回收结果。",
+  }],
+  ["Consumer buying and comparison selectors", {
+    name: "消费品购买与对比选择器",
+    pageShape: "对比矩阵、加权选择器或适配检查器",
+    monetization: "联盟分成、广告",
+    why: "用户正在做选择，结构化比较比泛泛榜单更有用。",
+  }],
+  ["Simple but scalable converters", {
+    name: "简单但可规模化的转换器",
+    pageShape: "快速计算或转换页面，支持批量和场景变体",
+    monetization: "广告",
+    why: "意图明确，但 SERP 往往拥挤，适合低优先级复核。",
+  }],
+  ["Symbols, timestamps, word finders, and tiny utilities", {
+    name: "符号、时间戳、找词与小工具",
+    pageShape: "复制工具、生成器、查询器或选择器",
+    monetization: "广告",
+    why: "这些是有效的非纯内容小工具，但商业价值较弱且竞争通常较密。",
+  }],
+  ["Translation, transliteration, and pronunciation tools", {
+    name: "翻译、转写与发音工具",
+    pageShape: "输入输出型翻译器、转写器或音频发音训练器",
+    monetization: "广告、语言课程",
+    why: "意图是工具型，但通用翻译 SERP 可能很强，需要进一步复核。",
+  }],
+  ["Real-time trackers and status pages", {
+    name: "实时追踪器与状态页",
+    pageShape: "带历史模式和新鲜度标记的追踪器",
+    monetization: "广告、联盟分成",
+    why: "产品形态清楚，但数据新鲜度和来源可得性需要确认。",
+  }],
+  ["Other valid SERP-review opportunities", {
+    name: "其他值得 SERP 复核的机会",
+    pageShape: "匹配推荐形态的非纯内容页面",
+    monetization: "广告、联盟分成、线索、模板或 SaaS",
+    why: "该候选通过了二筛，但没有命中更窄的内置词簇。",
+  }],
+]);
+
+function reportText(definition) {
+  return zhReportText.get(definition.name) || {
+    name: definition.name,
+    pageShape: definition.pageShape,
+    monetization: definition.monetization,
+    why: definition.why,
+  };
+}
+
 const args = parseArgs(process.argv);
 if (!args.input || !args["out-dir"]) {
   console.error("Usage: node cluster-recommendations.mjs --input final-reviewed-candidates.jsonl --out-dir site-dir [--metadata unique-keywords.jsonl]");
@@ -296,30 +470,32 @@ const keywordRows = [];
 for (const row of deduped) {
   const text = `${row.keyword} ${row.type || ""} ${row.reason || ""} ${row.recommended_shape || ""}`.toLowerCase();
   const definition = clusterDefinitions.find((cluster) => cluster.match(text));
+  const report = reportText(definition);
   if (!clusterMap.has(definition.name)) {
     clusterMap.set(definition.name, {
       priority: definition.priority,
-      name: definition.name,
-      pageShape: definition.pageShape,
-      monetization: definition.monetization,
-      why: definition.why,
+      name: report.name,
+      sourceName: definition.name,
+      pageShape: report.pageShape,
+      monetization: report.monetization,
+      why: report.why,
       keywordRows: [],
     });
   }
 
   const outputRow = {
     priority: definition.priority,
-    cluster: definition.name,
+    cluster: report.name,
     keyword: row.keyword,
     type: row.type || inferType(definition),
     volume: Number(row.volume || metadataByKeyword.get(metadataKey(row))?.volume || 0),
     kd: Number(row.kd || metadataByKeyword.get(metadataKey(row))?.kd || 0),
     cpc: Number(row.cpc || metadataByKeyword.get(metadataKey(row))?.cpc || 0),
     page: Number(row.page || metadataByKeyword.get(metadataKey(row))?.page || 0),
-    recommended_shape: row.recommended_shape || definition.pageShape,
-    monetization: row.monetization || definition.monetization,
+    recommended_shape: row.recommended_shape || report.pageShape,
+    monetization: row.monetization || report.monetization,
     risk: row.risk || "medium",
-    reason: row.reason || definition.why,
+    reason: row.reason || report.why,
   };
   clusterMap.get(definition.name).keywordRows.push(outputRow);
   keywordRows.push(outputRow);
@@ -371,33 +547,33 @@ fs.writeFileSync(jsonPath, JSON.stringify({ summary, clusters }, null, 2) + "\n"
 fs.writeFileSync(jsonlPath, keywordRows.map((row) => JSON.stringify(row)).join("\n") + (keywordRows.length ? "\n" : ""));
 
 const md = [];
-md.push("# SERP Review Recommendation Clusters");
+md.push("# SERP 复核推荐词簇");
 md.push("");
-md.push(`Source second-pass candidates: ${summary.sourceCandidates}`);
-md.push(`Recommended clusters: ${summary.recommendedClusters}`);
-md.push(`Recommended keyword entries: ${summary.recommendedKeywords}`);
+md.push(`二筛候选来源数：${summary.sourceCandidates}`);
+md.push(`推荐词簇数：${summary.recommendedClusters}`);
+md.push(`推荐关键词条目数：${summary.recommendedKeywords}`);
 md.push("");
-md.push("| Priority | Clusters | Keyword entries |");
+md.push("| 优先级 | 词簇数 | 关键词条目数 |");
 md.push("| --- | ---: | ---: |");
 for (const priority of ["P0", "P1", "P2"]) {
   md.push(`| ${priority} | ${summary.byPriority[priority].clusters} | ${summary.byPriority[priority].keywords} |`);
 }
 md.push("");
-md.push("Priority meanings:");
-md.push("- P0: verify first; strong non-content shape and monetization.");
-md.push("- P1: verify after P0 or when the SERP looks weak; still a valid opportunity.");
-md.push("- P2: keep as lower-priority long-tail or cluster-expansion checks, not rejected.");
+md.push("优先级说明：");
+md.push("- P0：优先复核；非纯内容形态强，变现路径清楚，用户意图明确。");
+md.push("- P1：随后复核；机会成立，但还需要 SERP 弱点、数据供给或执行成本确认。");
+md.push("- P2：长尾或扩展复核；不是拒绝，只是商业价值、竞争或数据可得性可能更弱。");
 md.push("");
 
 for (const cluster of clusters) {
   md.push(`## ${cluster.priority} - ${cluster.name}`);
   md.push("");
-  md.push(`- Page shape: ${cluster.pageShape}`);
-  md.push(`- Monetization: ${cluster.monetization}`);
-  md.push(`- Why: ${cluster.why}`);
-  md.push(`- Keyword entries: ${cluster.keywordRows.length}; total volume: ${cluster.totalVolume}; max CPC: ${cluster.maxCpc}`);
+  md.push(`- 页面形态：${cluster.pageShape}`);
+  md.push(`- 变现方式：${cluster.monetization}`);
+  md.push(`- 为什么值得复核：${cluster.why}`);
+  md.push(`- 关键词条目数：${cluster.keywordRows.length}；总搜索量：${cluster.totalVolume}；最高 CPC：${cluster.maxCpc}`);
   md.push("");
-  md.push("| Keyword | Vol | KD | CPC | Shape |");
+  md.push("| 关键词 | 搜索量 | KD | CPC | 推荐页面形态 |");
   md.push("| --- | ---: | ---: | ---: | --- |");
   for (const row of cluster.keywordRows) {
     md.push(`| ${row.keyword} | ${row.volume} | ${row.kd} | ${row.cpc} | ${String(row.recommended_shape).replaceAll("|", "/")} |`);

@@ -40,6 +40,7 @@ Defaults:
 - First-pass chunk size: `500`
 - Second-pass chunk size: `100`
 - Report shape: per-domain reports only, no cross-domain merge unless the user asks.
+- Report language: Chinese explanatory prose by default.
 
 ## Output Contract
 
@@ -130,6 +131,7 @@ Input: <domain-dir>/chunks-500/chunk-XX.jsonl.
 The input rows are keyword-only. Do not read raw rows, unique-keywords.jsonl, reports, or any file that exposes volume, traffic, KD, CPC, position, or ranking URLs.
 Output recommended SERP-verification keywords only as JSONL to <domain-dir>/first-pass-results/chunk-XX.jsonl.
 Base the decision only on the keyword text and rubric. You may include type/reason/recommended_shape, but do not infer from SEMrush metrics.
+Write explanatory fields such as `reason`, `recommended_shape`, `monetization`, and `supply_advantage` in Chinese.
 Be strict; include no rejected keywords. Do not modify files outside this output file.
 Final response: output path and count only.
 ```
@@ -169,6 +171,7 @@ Input: <domain-dir>/final-review-chunks/review-XX.jsonl.
 The input rows are keyword-only. Do not read raw rows, unique-keywords.jsonl, first-pass source files, reports, or any file that exposes volume, traffic, KD, CPC, position, ranking URLs, or first-pass rationale.
 Output only truly SERP-verification-worthy keywords as JSONL to <domain-dir>/final-review-results/review-XX.jsonl.
 Base the decision only on the keyword text and rubric. You may include type/reason/recommended_shape, but do not infer from SEMrush metrics.
+Write explanatory fields such as `reason`, `recommended_shape`, `monetization`, and `supply_advantage` in Chinese.
 Do not preserve recall for weak opportunities, but do not reject low-CPC or low-volume keywords merely for being small.
 Reject only broad topics, pure content, YMYL, local service, brand navigation, IP/copyright-heavy, and article/list-shaped opportunities.
 Do not modify files outside this output file.
@@ -189,6 +192,7 @@ node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/merge-jso
 
 Do not shrink the final list just to make it shorter. Cluster every second-pass candidate into P0/P1/P2 unless it is clearly invalid JSON or missing a keyword.
 The cluster script rehydrates metrics from `unique-keywords.jsonl` after screening, so subagents do not need to see metrics.
+Markdown reports use Chinese headings, labels, priority explanations, and built-in cluster descriptions by default.
 
 ```bash
 node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cluster-recommendations.mjs \

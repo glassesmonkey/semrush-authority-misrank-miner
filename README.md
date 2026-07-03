@@ -31,6 +31,7 @@ Then restart Codex or reload skills.
 - Splits keywords into first-pass and second-pass screening chunks
 - Keeps screening chunks keyword-only to reduce metric anchoring bias
 - Rehydrates SEMrush metrics only after screening for final reporting
+- Writes Markdown report headings, labels, priority explanations, and built-in cluster descriptions in Chinese by default
 - Produces per-domain P0/P1/P2 SERP-review keyword clusters
 
 ## Output
