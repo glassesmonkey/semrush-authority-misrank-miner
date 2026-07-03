@@ -630,7 +630,7 @@ function readJson(filePath, fallback = null) {
 async function main() {
   const args = parseArgs(process.argv);
   if (!args.domain || !args["out-dir"]) {
-    console.error("Usage: node cdp-scrape-semrush.mjs --domain reddit.com --out-dir run/reddit.com [--search-type domain|subdomain] [--url 'https://sem.3ue.co/...'] [--cdp http://127.0.0.1:9222] [--page-size 100] [--max-pages 10000] [--min-delay-ms 1200] [--max-delay-ms 4800]");
+    console.error("Usage: node cdp-scrape-semrush.mjs --domain reddit.com --out-dir run/reddit.com [--search-type domain|subdomain] [--url 'https://sem.3ue.co/...'] [--cdp http://127.0.0.1:9222] [--browser-ws ws://127.0.0.1:9222/devtools/browser/...] [--devtools-active-port /path/to/DevToolsActivePort] [--page-size 100] [--max-pages 10000] [--min-delay-ms 1200] [--max-delay-ms 4800]");
     process.exit(1);
   }
 

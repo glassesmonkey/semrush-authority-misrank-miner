@@ -1,6 +1,6 @@
 ---
 name: semrush-authority-misrank-miner
-description: Mine high-authority misrank keyword opportunities from SEMrush Organic Positions for domains and subdomains like reddit.com, youtube.com, facebook.com, wikipedia.org, fandom.com, spotify.com, or gamefaqs.gamespot.com. Use this skill whenever the user mentions 高权重站误排挖词法, SEMrush 反查大站关键词, Reddit/Facebook/YouTube/Wiki/Fandom/Spotify keyword mining, provides an authority domain or subdomain to mine, or asks to find non-pure-content site opportunities from authority domains. It connects to the user's logged-in Chrome CDP 9222 session, scrapes one target at a time with random delay, chunks keywords for subagent screening, and outputs per-target P0/P1/P2 SERP-review clusters.
+description: Mine high-authority misrank keyword opportunities from SEMrush Organic Positions for domains and subdomains like reddit.com, youtube.com, facebook.com, wikipedia.org, fandom.com, spotify.com, or gamefaqs.gamespot.com. Use this skill whenever the user mentions 高权重站误排挖词法, SEMrush 反查大站关键词, Reddit/Facebook/YouTube/Wiki/Fandom/Spotify keyword mining, provides an authority domain or subdomain to mine, or asks to find non-pure-content site opportunities from authority domains. It connects to the user's logged-in Chrome CDP 9222 session, opens a dedicated login browser if CDP is unavailable, scrapes one target at a time with random delay, chunks keywords for subagent screening, and outputs per-target P0/P1/P2 SERP-review clusters.
 ---
 
 # SEMrush Authority Misrank Miner
@@ -28,6 +28,8 @@ Ask for only what is missing:
 Defaults:
 
 - Chrome CDP: `http://127.0.0.1:9222`
+- Login browser profile: `$HOME/.codex/semrush-authority-chrome`
+- Login browser fallback CDP: `http://127.0.0.1:9333` if `9222` is occupied but not a healthy Chrome DevTools endpoint.
 - SEMrush database: `us`
 - Search type: auto-detect from the target or SEMrush URL. Use `domain` for root domains such as `reddit.com`; use `subdomain` when the user provides a subdomain such as `gamefaqs.gamespot.com`.
 - Device: desktop
@@ -71,6 +73,48 @@ Every recommended keyword row must include final derived priority plus audit fie
 {"priority":"P2","priority_source":"derived","priority_hint":"P0","derived_cap":"cap_P2","derived_cap_reason":"live external data with weak supply control","canonical_opportunity_key":"lookup/entity_pair/event_player_stats/sortable_data_page","keyword":"...","type":"A","volume":12345,"kd":12,"cpc":1.23,"recommended_shape":"...","monetization":"...","risk":"medium"}
 ```
 
+## CDP Login Handoff
+
+Before scraping, verify that the primary CDP endpoint is healthy:
+
+```bash
+curl -fsS http://127.0.0.1:9222/json/version >/dev/null
+```
+
+If `9222` is refused, times out, returns `404`, or is otherwise not a healthy Chrome DevTools endpoint, do not stop with instructions for the user to start Chrome. Open a dedicated login browser yourself:
+
+```bash
+SEM_CDP_PORT=9222
+SEM_PROFILE="$HOME/.codex/semrush-authority-chrome"
+open -na "Google Chrome" --args \
+  --remote-debugging-port="$SEM_CDP_PORT" \
+  --user-data-dir="$SEM_PROFILE" \
+  --no-first-run \
+  --no-default-browser-check \
+  'https://sem.3ue.co/analytics/organic/positions/'
+```
+
+If `9222` is already occupied by an unhealthy Chrome endpoint, do not kill the user's browser. Use the fallback port and remember to pass it to the scraper:
+
+```bash
+SEM_CDP_PORT=9333
+SEM_PROFILE="$HOME/.codex/semrush-authority-chrome"
+open -na "Google Chrome" --args \
+  --remote-debugging-port="$SEM_CDP_PORT" \
+  --user-data-dir="$SEM_PROFILE" \
+  --no-first-run \
+  --no-default-browser-check \
+  'https://sem.3ue.co/analytics/organic/positions/'
+```
+
+After opening the browser, tell the user exactly what to do and wait:
+
+```text
+我已打开 SEMrush 登录浏览器。请在里面登录 SEMrush/sem.3ue.co，并确认 Organic Positions 表能正常显示；完成后回复我继续。
+```
+
+Do not scrape, spawn subagents, or fabricate a failed run while waiting for the user's login confirmation. After the user confirms, recheck `/json/version`, then continue scraping with `--cdp http://127.0.0.1:$SEM_CDP_PORT` when a fallback port was used.
+
 ## Scrape SEMrush
 
 Use the bundled scraper. It captures the `organic.Positions` RPC request from the page and does not write cookies, API keys, or the captured RPC payload to disk.
@@ -105,9 +149,9 @@ Scrape domains one at a time. Do not parallelize SEMrush scraping across domains
 
 If scraping fails:
 
-- CDP connection refused: tell the user to start Chrome with remote debugging on port 9222.
-- Login/captcha/403: tell the user to fix the browser session and rerun the failed domain.
-- RPC template not found: reload the SEMrush page, confirm Organic Positions is visible, then rerun.
+- CDP connection refused, timeout, or unhealthy discovery endpoint: follow the CDP Login Handoff above, open the browser yourself, and wait for the user to confirm login.
+- Login/captcha/403: keep the login browser open, tell the user to fix the browser session, and wait for confirmation before rerunning the failed domain.
+- RPC template not found: reload or open the SEMrush Organic Positions page in the login browser, ask the user to confirm that the table is visible, then rerun.
 - RPC schema changed: save the diagnostic summary without secrets and stop that domain.
 
 ## Prepare Chunks
