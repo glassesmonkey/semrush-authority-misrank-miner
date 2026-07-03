@@ -2,11 +2,20 @@
 
 A Codex Skill for mining high-authority misrank keyword opportunities from SEMrush Organic Positions.
 
-It is designed for workflows where domains such as `reddit.com`, `youtube.com`, `facebook.com`, `wikipedia.org`, `fandom.com`, or `spotify.com` rank for keywords even when the page shape is not a precise match for user intent.
+It is designed for workflows where domains or subdomains such as `reddit.com`, `youtube.com`, `facebook.com`, `wikipedia.org`, `fandom.com`, `spotify.com`, or `gamefaqs.gamespot.com` rank for keywords even when the page shape is not a precise match for user intent.
 
-The skill scrapes SEMrush through a logged-in Chrome CDP session, deduplicates keywords, screens keyword-only chunks with subagents, and outputs per-domain P0/P1/P2 SERP-review reports.
+The skill scrapes SEMrush through a logged-in Chrome CDP session, deduplicates keywords, screens keyword-only chunks with subagents, and outputs per-target P0/P1/P2 SERP-review reports.
 
 ## Install
+
+For local development, keep this repository as the source of truth and symlink it into Codex:
+
+```bash
+mkdir -p ~/.codex/skills
+ln -s "$(pwd)" ~/.codex/skills/semrush-authority-misrank-miner
+```
+
+For a simple one-copy install directly under Codex:
 
 ```bash
 git clone https://github.com/glassesmonkey/semrush-authority-misrank-miner.git \
@@ -19,7 +28,8 @@ Then restart Codex or reload skills.
 
 - Connects to Chrome CDP at `http://127.0.0.1:9222`
 - Reuses the logged-in SEMrush browser session
-- Scrapes Organic Positions one domain at a time
+- Scrapes Organic Positions one target at a time
+- Auto-detects `domain` versus `subdomain` search scope, with `--search-type` available when explicit control is needed
 - Applies default filters:
   - US database
   - desktop

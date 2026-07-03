@@ -1,13 +1,13 @@
 ---
 name: semrush-authority-misrank-miner
-description: Mine high-authority misrank keyword opportunities from SEMrush Organic Positions for domains like reddit.com, youtube.com, facebook.com, wikipedia.org, fandom.com, and spotify.com. Use this skill whenever the user mentions 高权重站误排挖词法, SEMrush 反查大站关键词, Reddit/Facebook/YouTube/Wiki/Fandom/Spotify keyword mining, or asks to find non-pure-content site opportunities from authority domains. It connects to the user's logged-in Chrome CDP 9222 session, scrapes one domain at a time with random delay, chunks keywords for subagent screening, and outputs per-domain P0/P1/P2 SERP-review clusters.
+description: Mine high-authority misrank keyword opportunities from SEMrush Organic Positions for domains and subdomains like reddit.com, youtube.com, facebook.com, wikipedia.org, fandom.com, spotify.com, or gamefaqs.gamespot.com. Use this skill whenever the user mentions 高权重站误排挖词法, SEMrush 反查大站关键词, Reddit/Facebook/YouTube/Wiki/Fandom/Spotify keyword mining, provides an authority domain or subdomain to mine, or asks to find non-pure-content site opportunities from authority domains. It connects to the user's logged-in Chrome CDP 9222 session, scrapes one target at a time with random delay, chunks keywords for subagent screening, and outputs per-target P0/P1/P2 SERP-review clusters.
 ---
 
 # SEMrush Authority Misrank Miner
 
 Use this skill to run the user's "high-authority misrank keyword" workflow:
 
-1. Scrape SEMrush Organic Positions for one or more authority domains.
+1. Scrape SEMrush Organic Positions for one or more authority domains or subdomains.
 2. Deduplicate keywords.
 3. Split into 500-row keyword-only first-pass chunks.
 4. Use subagents for strict non-pure-content opportunity screening.
@@ -21,7 +21,7 @@ V1 does not automatically scrape Google SERPs. It outputs a prioritized SERP-rev
 
 Ask for only what is missing:
 
-- Required: target domains, such as `reddit.com, facebook.com, youtube.com`.
+- Required: target domains or subdomains, such as `reddit.com, facebook.com, youtube.com, gamefaqs.gamespot.com`.
 - Optional: a SEMrush Organic Positions URL whose filters should be inherited.
 - Optional: date, database, device, delay range, page limit, and subagent concurrency.
 
@@ -29,7 +29,7 @@ Defaults:
 
 - Chrome CDP: `http://127.0.0.1:9222`
 - SEMrush database: `us`
-- Search type: `domain`
+- Search type: auto-detect from the target or SEMrush URL. Use `domain` for root domains such as `reddit.com`; use `subdomain` when the user provides a subdomain such as `gamefaqs.gamespot.com`.
 - Device: desktop
 - Sort: traffic
 - Position: top 5
@@ -73,19 +73,30 @@ Every recommended keyword row must include:
 
 Use the bundled scraper. It captures the `organic.Positions` RPC request from the page and does not write cookies, API keys, or the captured RPC payload to disk.
 
+SEMrush treats root domains and subdomains as different search scopes. If the user gives `gamefaqs.gamespot.com`, keep that exact value as `q` and scrape with `searchType=subdomain`; do not collapse it to `gamespot.com` or leave `searchType=domain`. The scraper auto-detects common subdomain targets, inherits `searchType=subdomain` from a provided SEMrush URL, and also accepts `--search-type subdomain` when you need to be explicit.
+
 ```bash
 node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrape-semrush.mjs \
   --domain reddit.com \
   --out-dir semrush-authority-runs/20260702-120000/reddit.com
 ```
 
+For a subdomain target:
+
+```bash
+node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrape-semrush.mjs \
+  --domain gamefaqs.gamespot.com \
+  --search-type subdomain \
+  --out-dir semrush-authority-runs/20260702-120000/gamefaqs.gamespot.com
+```
+
 If the user provides a SEMrush URL, pass it with `--url`:
 
 ```bash
 node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrape-semrush.mjs \
-  --domain reddit.com \
+  --domain gamefaqs.gamespot.com \
   --url 'https://sem.3ue.co/analytics/organic/positions/?...' \
-  --out-dir semrush-authority-runs/20260702-120000/reddit.com
+  --out-dir semrush-authority-runs/20260702-120000/gamefaqs.gamespot.com
 ```
 
 Scrape domains one at a time. Do not parallelize SEMrush scraping across domains.

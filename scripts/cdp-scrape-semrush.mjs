@@ -83,25 +83,90 @@ function domainSlug(domain) {
   return String(domain).trim().replace(/[^a-z0-9.-]+/gi, "_") || "domain";
 }
 
-function buildDefaultUrl(domain, args) {
+function normalizeDomainInput(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+  try {
+    if (/^https?:\/\//i.test(raw)) return new URL(raw).hostname.replace(/\.$/, "");
+  } catch {
+    // Fall through to the simple cleanup below.
+  }
+  return raw.replace(/^\/+/, "").split(/[/?#]/)[0].replace(/\.$/, "");
+}
+
+const COMMON_TWO_PART_PUBLIC_SUFFIXES = new Set([
+  "ac.uk",
+  "co.in",
+  "co.jp",
+  "co.kr",
+  "co.nz",
+  "co.uk",
+  "com.ar",
+  "com.au",
+  "com.br",
+  "com.cn",
+  "com.hk",
+  "com.mx",
+  "com.sg",
+  "com.tr",
+  "com.tw",
+  "com.ua",
+  "firm.in",
+  "gov.uk",
+  "ne.jp",
+  "net.au",
+  "net.in",
+  "or.jp",
+  "org.au",
+  "org.in",
+  "org.uk",
+]);
+
+function looksLikeSubdomain(domain) {
+  const host = normalizeDomainInput(domain).toLowerCase();
+  const labels = host.split(".").filter(Boolean);
+  if (labels.length <= 2) return false;
+  const suffix = labels.slice(-2).join(".");
+  const rootLabelCount = COMMON_TWO_PART_PUBLIC_SUFFIXES.has(suffix) ? 3 : 2;
+  return labels.length > rootLabelCount;
+}
+
+function normalizeSearchType(value, label = "search type") {
+  const normalized = String(value || "").trim().toLowerCase().replace(/_/g, "-");
+  if (normalized === "domain" || normalized === "subdomain") return normalized;
+  throw new Error(`${label} must be "domain" or "subdomain", got "${value}".`);
+}
+
+function resolveSearchType(domain, inputUrl, args = {}) {
+  const explicit = args["search-type"] || args.searchType;
+  if (explicit) return normalizeSearchType(explicit, "--search-type");
+  if (inputUrl) {
+    const fromUrl = new URL(inputUrl).searchParams.get("searchType");
+    if (fromUrl) return normalizeSearchType(fromUrl, "URL searchType");
+  }
+  return looksLikeSubdomain(domain) ? "subdomain" : "domain";
+}
+
+function buildDefaultUrl(domain, args, searchType) {
   const url = new URL("https://sem.3ue.co/analytics/organic/positions/");
   url.searchParams.set("sortField", "traffic");
   url.searchParams.set("filter", JSON.stringify(DEFAULT_FILTER));
   url.searchParams.set("db", args.db || "us");
   url.searchParams.set("q", domain);
-  url.searchParams.set("searchType", "domain");
+  url.searchParams.set("searchType", searchType);
   if (args.date) url.searchParams.set("date", args.date);
   return url.toString();
 }
 
-function inheritUrl(inputUrl, domain, args) {
-  const url = inputUrl ? new URL(inputUrl) : new URL(buildDefaultUrl(domain, args));
+function inheritUrl(inputUrl, domain, args, searchType) {
+  const resolvedSearchType = searchType || resolveSearchType(domain, inputUrl, args);
+  const url = inputUrl ? new URL(inputUrl) : new URL(buildDefaultUrl(domain, args, resolvedSearchType));
   if (!url.searchParams.has("filter")) {
     url.searchParams.set("filter", JSON.stringify(DEFAULT_FILTER));
   }
   if (!url.searchParams.has("sortField")) url.searchParams.set("sortField", "traffic");
   url.searchParams.set("q", domain);
-  url.searchParams.set("searchType", "domain");
+  url.searchParams.set("searchType", resolvedSearchType);
   if (args.db) url.searchParams.set("db", args.db);
   if (!url.searchParams.has("db")) url.searchParams.set("db", "us");
   if (args.date) url.searchParams.set("date", args.date);
@@ -494,11 +559,11 @@ function readJson(filePath, fallback = null) {
 async function main() {
   const args = parseArgs(process.argv);
   if (!args.domain || !args["out-dir"]) {
-    console.error("Usage: node cdp-scrape-semrush.mjs --domain reddit.com --out-dir run/reddit.com [--url 'https://sem.3ue.co/...'] [--cdp http://127.0.0.1:9222] [--page-size 100] [--max-pages 10000] [--min-delay-ms 1200] [--max-delay-ms 4800]");
+    console.error("Usage: node cdp-scrape-semrush.mjs --domain reddit.com --out-dir run/reddit.com [--search-type domain|subdomain] [--url 'https://sem.3ue.co/...'] [--cdp http://127.0.0.1:9222] [--page-size 100] [--max-pages 10000] [--min-delay-ms 1200] [--max-delay-ms 4800]");
     process.exit(1);
   }
 
-  const domain = String(args.domain).trim();
+  const domain = normalizeDomainInput(args.domain);
   const cdpBase = normalizeCdpBase(args.cdp || "http://127.0.0.1:9222");
   const outDir = path.resolve(args["out-dir"] || domainSlug(domain));
   const pageSize = Number(args["page-size"] || 100);
@@ -507,7 +572,8 @@ async function main() {
   const append = Boolean(args.append || startPage > 1);
   const minDelayMs = Number(args["min-delay-ms"] || 1200);
   const maxDelayMs = Number(args["max-delay-ms"] || 4800);
-  const targetUrl = inheritUrl(args.url, domain, args);
+  const searchType = resolveSearchType(domain, args.url, args);
+  const targetUrl = inheritUrl(args.url, domain, args, searchType);
   const startedAt = nowIso();
   const rawRowsPath = path.join(outDir, "raw-rows.jsonl");
   const summaryPath = path.join(outDir, "scrape-summary.json");
@@ -519,6 +585,7 @@ async function main() {
     startedAt,
     completedAt: null,
     cdpBase,
+    searchType,
     targetUrl: safeUrlForLog(targetUrl),
     pageSize,
     maxPages,
