@@ -1,0 +1,17 @@
+[
+  {
+    "name": "single-domain-authority-misrank-run",
+    "prompt": "用高权重站误排挖词法分析 reddit.com，默认 SEMrush 条件，先抓取再分片分析，最后只给每站 P0/P1/P2 SERP 复核词簇。",
+    "expected": "Uses the semrush-authority-misrank-miner skill, scrapes reddit.com through Chrome CDP 9222 one site at a time, chunks first pass at 500, chunks second pass at 100, and outputs per-domain P0/P1/P2 reports without automatic Google SERP verification."
+  },
+  {
+    "name": "multi-domain-isolated-output",
+    "prompt": "批量反查 reddit.com 和 facebook.com，按高权重误排流程跑，不要跨站合并。",
+    "expected": "Creates separate domain directories and reports for reddit.com and facebook.com, serializes SEMrush scraping, and maintains run-index.json with per-domain counts and errors."
+  },
+  {
+    "name": "offline-jsonl-analysis",
+    "prompt": "我已经有 SEMrush raw-rows.jsonl，不用再抓页面，直接帮我筛选适合非纯内容站的词。",
+    "expected": "Starts from prepare-keyword-chunks.mjs, uses the rubric for first-pass and second-pass screening, then clusters all second-pass candidates into P0/P1/P2 without shrinking for aesthetics."
+  }
+]
