@@ -42,11 +42,7 @@ const domains = fs.readdirSync(runDir, { withFileTypes: true })
   .map((entry) => entry.name)
   .sort((a, b) => a.localeCompare(b));
 const requiredRecommendationFields = ["priority", "cluster", "keyword", "type", "volume", "kd", "cpc", "page", "recommended_shape", "monetization", "risk", "reason"];
-const requiredFiles = [
-  "raw-rows.jsonl",
-  "unique-keywords.jsonl",
-  "first-pass-candidates.jsonl",
-  "final-reviewed-candidates.jsonl",
+const reportFiles = [
   "serp-review-recommendations.md",
   "serp-review-recommendation-keywords.jsonl",
   "serp-review-recommendation-clusters.json",
@@ -57,15 +53,26 @@ const errors = [];
 
 for (const domain of domains) {
   const dir = path.join(runDir, domain);
-  for (const file of requiredFiles) {
-    if (!fs.existsSync(path.join(dir, file))) errors.push(`${domain} missing ${file}`);
-  }
+  const rawPath = path.join(dir, "raw-rows.jsonl");
+  if (!fs.existsSync(rawPath)) errors.push(`${domain} missing raw-rows.jsonl`);
 
-  const rawRows = readJsonl(path.join(dir, "raw-rows.jsonl"));
-  const uniqueRows = readJsonl(path.join(dir, "unique-keywords.jsonl"));
-  const firstPassRows = readJsonl(path.join(dir, "first-pass-candidates.jsonl"));
-  const finalRows = readJsonl(path.join(dir, "final-reviewed-candidates.jsonl"));
-  const recommendationRows = readJsonl(path.join(dir, "serp-review-recommendation-keywords.jsonl"));
+  const rawRows = readJsonl(rawPath);
+  const uniquePath = path.join(dir, "unique-keywords.jsonl");
+  const firstPassPath = path.join(dir, "first-pass-candidates.jsonl");
+  const finalPath = path.join(dir, "final-reviewed-candidates.jsonl");
+  const recommendationPath = path.join(dir, "serp-review-recommendation-keywords.jsonl");
+  const uniqueRows = readJsonl(uniquePath);
+  const firstPassRows = readJsonl(firstPassPath);
+  const finalRows = readJsonl(finalPath);
+  const recommendationRows = readJsonl(recommendationPath);
+
+  if (rawRows.length > 0 && !fs.existsSync(uniquePath)) errors.push(`${domain} missing unique-keywords.jsonl`);
+  if (firstPassRows.length > 0 && !fs.existsSync(finalPath)) errors.push(`${domain} missing final-reviewed-candidates.jsonl`);
+  if (finalRows.length > 0) {
+    for (const file of reportFiles) {
+      if (!fs.existsSync(path.join(dir, file))) errors.push(`${domain} missing ${file}`);
+    }
+  }
 
   const keywordSet = new Set();
   for (const row of recommendationRows) {

@@ -57,6 +57,31 @@ function compactRow(row) {
   if (row.monetization) compact.monetization = row.monetization;
   if (row.risk) compact.risk = row.risk;
   if (row.supply_advantage) compact.supply_advantage = row.supply_advantage;
+  for (const field of [
+    "schema_version",
+    "keep",
+    "intent_shape",
+    "answer_source_model",
+    "freshness_need",
+    "entity_structure",
+    "canonical_opportunity_label",
+    "canonical_key_components",
+    "supply_risk_hint",
+    "non_content_advantage",
+    "supply_control",
+    "natural_winner",
+    "differentiation_basis",
+    "maintenance_burden",
+    "legal_or_platform_risk",
+    "permutation_inflation",
+    "route_hint",
+    "priority_hint",
+    "subagent_cap_hint",
+    "subagent_cap_reason",
+    "confidence",
+  ]) {
+    if (row[field] !== undefined) compact[field] = row[field];
+  }
 
   return compact;
 }

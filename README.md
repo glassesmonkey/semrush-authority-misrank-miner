@@ -4,7 +4,7 @@ A Codex Skill for mining high-authority misrank keyword opportunities from SEMru
 
 It is designed for workflows where domains or subdomains such as `reddit.com`, `youtube.com`, `facebook.com`, `wikipedia.org`, `fandom.com`, `spotify.com`, or `gamefaqs.gamespot.com` rank for keywords even when the page shape is not a precise match for user intent.
 
-The skill scrapes SEMrush through a logged-in Chrome CDP session, deduplicates keywords, screens keyword-only chunks with subagents, and outputs per-target P0/P1/P2 SERP-review reports.
+The skill scrapes SEMrush through a logged-in Chrome CDP session, deduplicates keywords, screens keyword-only chunks with subagents, and outputs per-target P0/P1/P2 SERP-review reports. Subagents provide opportunity evidence; final priority is derived after canonical grouping and metric rehydration.
 
 ## Install
 
@@ -41,6 +41,7 @@ Then restart Codex or reload skills.
 - Splits keywords into first-pass and second-pass screening chunks
 - Keeps screening chunks keyword-only to reduce metric anchoring bias
 - Rehydrates SEMrush metrics only after screening for final reporting
+- Derives final route, caps, and priority from supply model, maintenance burden, natural winner, differentiation, and permutation inflation
 - Writes Markdown report headings, labels, priority explanations, and built-in cluster descriptions in Chinese by default
 - Produces per-domain P0/P1/P2 SERP-review keyword clusters
 
@@ -63,6 +64,8 @@ semrush-authority-runs/YYYYMMDD-HHMMSS/
     serp-review-recommendations.md
     serp-review-recommendation-keywords.jsonl
     serp-review-recommendation-clusters.json
+    opportunity-clusters.json
+    opportunity-clusters.md
 ```
 
 ## Safety Notes
@@ -78,4 +81,4 @@ semrush-authority-runs/YYYYMMDD-HHMMSS/
 node scripts/validate-fixtures.mjs
 ```
 
-The fixture validation checks JSONL parsing, keyword dedupe, keyword-only chunks, merge behavior, metric rehydration, P0/P1/P2 reporting, and run-index generation.
+The fixture validation checks JSONL parsing, keyword dedupe, keyword-only chunks, merge behavior, metric rehydration, canonical grouping, priority caps, P0/P1/P2 reporting, v1 compatibility, and run-index generation.

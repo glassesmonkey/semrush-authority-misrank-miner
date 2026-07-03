@@ -13,9 +13,9 @@ Use this skill to run the user's "high-authority misrank keyword" workflow:
 4. Use subagents for strict non-pure-content opportunity screening.
 5. Split first-pass candidates into 100-row keyword-only second-pass chunks.
 6. Use subagents for stricter review.
-7. Cluster the final candidates into P0/P1/P2 SERP-review reports.
+7. Derive canonical opportunity clusters, caps, and P0/P1/P2 SERP-review reports.
 
-V1 does not automatically scrape Google SERPs. It outputs a prioritized SERP-review pool.
+This skill does not automatically scrape Google SERPs. It outputs a prioritized SERP-review pool.
 
 ## Default Inputs
 
@@ -61,12 +61,14 @@ semrush-authority-runs/YYYYMMDD-HHMMSS/
     serp-review-recommendations.md
     serp-review-recommendation-keywords.jsonl
     serp-review-recommendation-clusters.json
+    opportunity-clusters.json
+    opportunity-clusters.md
 ```
 
-Every recommended keyword row must include:
+Every recommended keyword row must include final derived priority plus audit fields:
 
 ```json
-{"priority":"P0","cluster":"...","keyword":"...","type":"A|F","volume":12345,"kd":12,"cpc":1.23,"recommended_shape":"...","monetization":"...","risk":"low"}
+{"priority":"P2","priority_source":"derived","priority_hint":"P0","derived_cap":"cap_P2","derived_cap_reason":"live external data with weak supply control","canonical_opportunity_key":"lookup/entity_pair/event_player_stats/sortable_data_page","keyword":"...","type":"A","volume":12345,"kd":12,"cpc":1.23,"recommended_shape":"...","monetization":"...","risk":"medium"}
 ```
 
 ## Scrape SEMrush
@@ -129,7 +131,7 @@ Important:
 
 ## First-Pass Subagent Screening
 
-Read `references/rubric.md` before spawning subagents.
+Read `references/rubric.md` and `references/schema-v2.md` before spawning subagents.
 
 For each `chunks-500/chunk-XX.jsonl`, spawn a worker subagent. Do not set model or reasoning overrides; let subagents inherit the current defaults.
 
@@ -138,11 +140,14 @@ Prompt template:
 ```text
 Screen exactly one SEMrush keyword chunk for non-pure-content site opportunities.
 Read rubric: `$HOME/.codex/skills/semrush-authority-misrank-miner/references/rubric.md`.
+Read output schema: `$HOME/.codex/skills/semrush-authority-misrank-miner/references/schema-v2.md`.
 Input: <domain-dir>/chunks-500/chunk-XX.jsonl.
 The input rows are keyword-only. Do not read raw rows, unique-keywords.jsonl, reports, or any file that exposes volume, traffic, KD, CPC, position, or ranking URLs.
-Output recommended SERP-verification keywords only as JSONL to <domain-dir>/first-pass-results/chunk-XX.jsonl.
-Base the decision only on the keyword text and rubric. You may include type/reason/recommended_shape, but do not infer from SEMrush metrics.
-Write explanatory fields such as `reason`, `recommended_shape`, `monetization`, and `supply_advantage` in Chinese.
+Output plausible SERP-verification keywords only as JSONL to <domain-dir>/first-pass-results/chunk-XX.jsonl using the schema-v2 first-pass shape.
+Base the decision only on the keyword text, rubric, and schema. Do not infer from SEMrush metrics.
+Judge supply model and permutation risk, but use `unknown` instead of pretending certainty.
+Do not assign final P0/P1/P2. Use `route_hint` and `confidence` only.
+Write explanatory fields such as `reason` in Chinese.
 Be strict; include no rejected keywords. Do not modify files outside this output file.
 Final response: output path and count only.
 ```
@@ -178,13 +183,19 @@ For each `final-review-chunks/review-XX.jsonl`, spawn a worker subagent:
 ```text
 Second-pass screen exactly one batch of first-pass SEMrush keyword candidates.
 Read strict rubric: `$HOME/.codex/skills/semrush-authority-misrank-miner/references/rubric.md`.
+Read output schema: `$HOME/.codex/skills/semrush-authority-misrank-miner/references/schema-v2.md`.
+Read task taxonomy: `$HOME/.codex/skills/semrush-authority-misrank-miner/references/opportunity-taxonomy.md`.
 Input: <domain-dir>/final-review-chunks/review-XX.jsonl.
 The input rows are keyword-only. Do not read raw rows, unique-keywords.jsonl, first-pass source files, reports, or any file that exposes volume, traffic, KD, CPC, position, ranking URLs, or first-pass rationale.
-Output only truly SERP-verification-worthy keywords as JSONL to <domain-dir>/final-review-results/review-XX.jsonl.
-Base the decision only on the keyword text and rubric. You may include type/reason/recommended_shape, but do not infer from SEMrush metrics.
-Write explanatory fields such as `reason`, `recommended_shape`, `monetization`, and `supply_advantage` in Chinese.
+Output only truly SERP-verification-worthy keywords as JSONL to <domain-dir>/final-review-results/review-XX.jsonl using the schema-v2 second-pass shape.
+Base the decision only on the keyword text, rubric, schema, and taxonomy. Do not infer from SEMrush metrics.
+Do not classify by topic category alone. Judge how the answer is produced, who naturally owns the best answer, and whether an independent builder has supply advantage.
+Do not downgrade merely because the keyword belongs to sports, travel, finance, entertainment, or local data.
+Do not assign final priority. `priority_hint`, `subagent_cap_hint`, and `route_hint` are evidence only.
+Use canonical key components for task identity only; do not put supply, risk, winner, maintenance, cap, or priority into the key components.
+Write explanatory fields such as `reason`, `recommended_shape`, `monetization`, and `subagent_cap_reason` in Chinese.
 Do not preserve recall for weak opportunities, but do not reject low-CPC or low-volume keywords merely for being small.
-Reject only broad topics, pure content, YMYL, local service, brand navigation, IP/copyright-heavy, and article/list-shaped opportunities.
+Use `unknown` where keyword-only evidence is weak. Unknown does not mean reject, but unknown cannot support P0.
 Do not modify files outside this output file.
 Final response: output path and count only.
 ```
@@ -202,8 +213,11 @@ node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/merge-jsonl-re
 ## Cluster and Report
 
 Do not shrink the final list just to make it shorter. Cluster every second-pass candidate into P0/P1/P2 unless it is clearly invalid JSON or missing a keyword.
-The cluster script rehydrates metrics from `unique-keywords.jsonl` after screening, so subagents do not need to see metrics.
-Markdown reports use Chinese headings, labels, priority explanations, and built-in cluster descriptions by default.
+Read `references/priority-derivation.md` when diagnosing or editing final priority behavior.
+The cluster script generates canonical keys from task identity fields, derives final route/cap/priority, and rehydrates metrics from `unique-keywords.jsonl` after screening.
+Subagent `priority_hint`, `subagent_cap_hint`, and `route_hint` are evidence, not final judgment.
+SEMrush metrics can sort inside an allowed priority band but must not override reject or cap rules.
+Markdown reports use Chinese headings, compact supply-model badges, labels, and priority explanations by default.
 
 ```bash
 node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/cluster-recommendations.mjs" \
@@ -213,9 +227,9 @@ node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/cluster-recomm
 
 Priority meanings:
 
-- P0: verify first; strong non-content shape, clear monetization, clear user intent.
-- P1: valid opportunity; verify after P0 or when the SERP looks weak.
-- P2: valid long-tail or cluster-expansion checks; not rejected.
+- P0: verify first; supply is controllable, maintenance is bounded, differentiation is explicit, and value is not just permutation volume.
+- P1: valid opportunity; supply, natural winner, or execution cost still needs confirmation.
+- P2: valid long-tail, cluster seed, or data-source-needed review; not rejected.
 
 ## Run Index
 
@@ -249,6 +263,7 @@ node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/validate-fixtu
 ```
 
 This verifies JSONL parsing, keyword dedupe, chunking, merging, P0/P1/P2 clustering, required recommendation fields, and run-index generation against small local fixtures.
+It also checks v2 schema behavior, canonical grouping, priority caps, legacy v1 compatibility, and that hidden SEMrush metrics do not leak into subagent rows.
 
 ## Safety
 

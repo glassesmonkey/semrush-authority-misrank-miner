@@ -260,10 +260,10 @@ const clusterDefinitions = [
   },
   {
     name: "Other valid SERP-review opportunities",
-    priority: "P1",
+    priority: "P2",
     pageShape: "Non-pure-content page matching the provided recommended_shape",
     monetization: "Ads, affiliate, lead-gen, templates, or SaaS",
-    why: "The candidate passed second-pass review but did not match a narrower built-in cluster.",
+    why: "The candidate passed legacy second-pass review but did not match a narrower built-in cluster.",
     match: () => true,
   },
 ];
@@ -442,6 +442,280 @@ function reportText(definition) {
   };
 }
 
+const priorityOrder = { P0: 0, P1: 1, P2: 2 };
+const hiddenMetricFields = ["volume", "traffic", "kd", "cpc", "position", "pos", "page", "url", "redditUrl", "landingPage", "landing_page"];
+
+function isV2(row) {
+  return Number(row.schema_version) === 2;
+}
+
+function slugComponent(value, fallback = "unknown") {
+  const slug = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+  return slug || fallback;
+}
+
+function canonicalKeyFromRow(row) {
+  const components = row.canonical_key_components && typeof row.canonical_key_components === "object"
+    ? row.canonical_key_components
+    : {};
+  const taskFamily = slugComponent(components.task_family);
+  const entityStructure = slugComponent(components.entity_structure || row.entity_structure);
+  const taskObject = slugComponent(components.task_object);
+  const outputShape = slugComponent(components.output_shape);
+  const inputPattern = slugComponent(components.input_pattern, "");
+
+  if ([taskFamily, entityStructure, taskObject, outputShape].includes("unknown")) {
+    const label = slugComponent(row.canonical_opportunity_label || row.intent_shape || "review");
+    return {
+      key: `unclustered/${label}`,
+      missingComponents: true,
+      components,
+    };
+  }
+
+  return {
+    key: [taskFamily, entityStructure, taskObject, outputShape, inputPattern].filter(Boolean).join("/"),
+    missingComponents: false,
+    components,
+  };
+}
+
+function hasHiddenMetrics(row) {
+  return hiddenMetricFields.some((field) => row[field] !== undefined);
+}
+
+function metadataFor(row, metadataByKeyword) {
+  return metadataByKeyword.get(metadataKey(row)) || {};
+}
+
+function metricNumber(row, metadataByKeyword, field, aliases = []) {
+  const metadata = metadataFor(row, metadataByKeyword);
+  const values = [metadata[field], ...aliases.map((alias) => metadata[alias])];
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return 0;
+}
+
+function legacyMetricNumber(row, metadataByKeyword, field, aliases = []) {
+  const metadata = metadataFor(row, metadataByKeyword);
+  const values = [row[field], ...aliases.map((alias) => row[alias]), metadata[field], ...aliases.map((alias) => metadata[alias])];
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return 0;
+}
+
+function typeFromIntent(row, fallbackDefinition) {
+  const intent = String(row.intent_shape || "").toLowerCase();
+  if (["calculator", "converter", "checker", "lookup", "tracker", "generator", "data_page"].includes(intent)) return "A";
+  if (["workflow", "planner"].includes(intent)) return "B";
+  if (intent === "training") return "D";
+  if (intent === "library") return "E";
+  if (intent === "comparison") return "F";
+  if (fallbackDefinition) return inferType(fallbackDefinition);
+  return row.type || "A";
+}
+
+function isDynamicSource(row) {
+  return ["live_external_data", "licensed_or_proprietary_data", "official_or_marketplace_inventory"].includes(row.answer_source_model);
+}
+
+function isRealDifferentiation(row) {
+  return row.differentiation_basis && !["none", "unknown"].includes(row.differentiation_basis);
+}
+
+function priorityFromHint(hint) {
+  return ["P0", "P1", "P2"].includes(hint) ? hint : null;
+}
+
+function applyCap(priority, cap) {
+  if (cap === "cap_P2") return "P2";
+  if (cap === "cap_P1" && priority === "P0") return "P1";
+  return priority;
+}
+
+function derivePriority(row, canonical) {
+  const reasons = [];
+  let derivedCap = "none";
+  let derivedRoute = row.route_hint || "serp_review";
+
+  const noIndependentPath =
+    row.non_content_advantage === "low" &&
+    (!isRealDifferentiation(row)) &&
+    ["weak", "unknown", undefined].includes(row.supply_control);
+  const officialOnlyNoValue =
+    row.answer_source_model === "official_or_marketplace_inventory" &&
+    ["official_source", "marketplace"].includes(row.natural_winner) &&
+    !isRealDifferentiation(row) &&
+    ["weak", "unknown", undefined].includes(row.supply_control);
+
+  if (noIndependentPath || (row.route_hint === "reject" && officialOnlyNoValue)) {
+    return {
+      priority: "P2",
+      prioritySource: "derived",
+      derivedCap: "reject",
+      derivedRoute: "reject",
+      derivedCapReason: noIndependentPath
+        ? "no non-content advantage, no differentiation, and no plausible independent supply path"
+        : "official or marketplace inventory with no independent value-add",
+      priorityReason: "Derived reject; route_hint alone is not sufficient for rejection.",
+    };
+  }
+
+  if (isDynamicSource(row) && ["weak", "unknown", undefined].includes(row.supply_control)) {
+    derivedCap = "cap_P2";
+    reasons.push("dynamic or official data with weak/unknown supply control");
+  }
+  if (row.freshness_need === "live" && ["high", "unknown", undefined].includes(row.maintenance_burden)) {
+    derivedCap = "cap_P2";
+    reasons.push("live freshness with high/unknown maintenance burden");
+  }
+  if (row.permutation_inflation === "high" && ["weak", "unknown", undefined].includes(row.supply_control)) {
+    derivedCap = "cap_P2";
+    reasons.push("high permutation inflation with weak/unknown canonical supply");
+  }
+  if (["official_source", "specialized_data_provider", "marketplace"].includes(row.natural_winner) && !isRealDifferentiation(row)) {
+    derivedCap = "cap_P2";
+    reasons.push("official/specialized natural winner with no clear differentiation");
+  }
+  if (row.priority_hint === "P0" && (
+    ["unknown", undefined].includes(row.supply_control) ||
+    ["unknown", undefined].includes(row.maintenance_burden) ||
+    ["unknown", undefined].includes(row.natural_winner) ||
+    canonical.missingComponents
+  )) {
+    derivedCap = "cap_P2";
+    reasons.push("unknown critical supply or identity fields cannot support P0");
+  }
+
+  if (derivedCap === "none") {
+    if (isDynamicSource(row) && row.supply_control === "medium" && isRealDifferentiation(row)) {
+      derivedCap = "cap_P1";
+      reasons.push("dynamic/external supply with medium control and real differentiation");
+    } else if (["specialized_data_provider", "official_source"].includes(row.natural_winner) && isRealDifferentiation(row) && row.supply_control === "medium") {
+      derivedCap = "cap_P1";
+      reasons.push("natural winner is strong, but independent differentiation is credible");
+    } else if (row.maintenance_burden === "medium" && row.supply_control !== "strong") {
+      derivedCap = "cap_P1";
+      reasons.push("maintenance burden is medium and supply control is not strong");
+    }
+  }
+
+  const hintedPriority = priorityFromHint(row.priority_hint);
+  const p0Eligible =
+    row.non_content_advantage === "high" &&
+    ["strong", "medium"].includes(row.supply_control) &&
+    ["low", "medium"].includes(row.maintenance_burden) &&
+    ["low", "medium", undefined].includes(row.legal_or_platform_risk) &&
+    row.permutation_inflation !== "high" &&
+    isRealDifferentiation(row) &&
+    !canonical.missingComponents;
+
+  let priority = "P2";
+  if (hintedPriority === "P0" && p0Eligible) {
+    priority = "P0";
+  } else if (
+    hintedPriority === "P1" ||
+    hintedPriority === "P0" ||
+    row.non_content_advantage === "high" ||
+    (row.non_content_advantage === "medium" && isRealDifferentiation(row))
+  ) {
+    priority = "P1";
+  }
+
+  priority = applyCap(priority, derivedCap);
+  if (derivedRoute === "reject") derivedRoute = priority === "P2" ? "cluster_seed" : "serp_review";
+
+  return {
+    priority,
+    prioritySource: "derived",
+    derivedCap,
+    derivedRoute,
+    derivedCapReason: reasons.join("; ") || "none",
+    priorityReason: priority === "P0"
+      ? "P0 allowed by strong supply control, bounded maintenance, clear differentiation, and high non-content advantage."
+      : `Priority derived from semantic evidence${reasons.length ? `; cap applied: ${reasons.join("; ")}` : ""}.`,
+  };
+}
+
+function buildLegacyRow(row, definition, report, metadataByKeyword) {
+  return {
+    priority: definition.priority,
+    priority_source: "legacy_regex",
+    cluster: report.name,
+    keyword: row.keyword,
+    type: row.type || inferType(definition),
+    volume: legacyMetricNumber(row, metadataByKeyword, "volume", ["search_volume", "searchVolume"]),
+    kd: legacyMetricNumber(row, metadataByKeyword, "kd", ["keyword_difficulty", "keywordDifficulty"]),
+    cpc: legacyMetricNumber(row, metadataByKeyword, "cpc"),
+    page: legacyMetricNumber(row, metadataByKeyword, "page"),
+    recommended_shape: row.recommended_shape || report.pageShape,
+    monetization: row.monetization || report.monetization,
+    risk: row.risk || "medium",
+    reason: row.reason || report.why,
+  };
+}
+
+function buildV2Row(row, canonical, derivation, metadataByKeyword) {
+  return {
+    schema_version: 2,
+    priority: derivation.priority,
+    priority_source: derivation.prioritySource,
+    priority_hint: row.priority_hint || "none",
+    subagent_cap_hint: row.subagent_cap_hint || "none",
+    subagent_cap_reason: row.subagent_cap_reason || "",
+    derived_cap: derivation.derivedCap,
+    derived_cap_reason: derivation.derivedCapReason,
+    route_hint: row.route_hint || "serp_review",
+    derived_route: derivation.derivedRoute,
+    priority_reason: derivation.priorityReason,
+    canonical_opportunity_key: canonical.key,
+    canonical_opportunity_label: row.canonical_opportunity_label || canonical.key,
+    cluster: row.canonical_opportunity_label || canonical.key,
+    keyword: row.keyword,
+    type: row.type || typeFromIntent(row),
+    volume: metricNumber(row, metadataByKeyword, "volume", ["search_volume", "searchVolume"]),
+    kd: metricNumber(row, metadataByKeyword, "kd", ["keyword_difficulty", "keywordDifficulty"]),
+    cpc: metricNumber(row, metadataByKeyword, "cpc"),
+    page: metricNumber(row, metadataByKeyword, "page"),
+    recommended_shape: row.recommended_shape || row.canonical_opportunity_label || "Non-content page requiring SERP verification",
+    monetization: row.monetization || "ads/affiliate/SaaS/lead-gen",
+    risk: row.risk || row.legal_or_platform_risk || "medium",
+    reason: row.reason || derivation.priorityReason,
+    intent_shape: row.intent_shape || "unknown",
+    answer_source_model: row.answer_source_model || "unknown",
+    freshness_need: row.freshness_need || "unknown",
+    entity_structure: row.entity_structure || canonical.components?.entity_structure || "unknown",
+    non_content_advantage: row.non_content_advantage || "unknown",
+    supply_control: row.supply_control || "unknown",
+    natural_winner: row.natural_winner || "unknown",
+    differentiation_basis: row.differentiation_basis || "unknown",
+    maintenance_burden: row.maintenance_burden || "unknown",
+    legal_or_platform_risk: row.legal_or_platform_risk || "unknown",
+    permutation_inflation: row.permutation_inflation || "unknown",
+    confidence: row.confidence || "medium",
+    canonical_key_components: canonical.components || {},
+    hidden_metrics_in_subagent_row: hasHiddenMetrics(row),
+  };
+}
+
+function summarizeClusterRows(rows, field) {
+  const counts = new Map();
+  for (const row of rows) {
+    const value = row[field] || "unknown";
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0]?.[0] || "unknown";
+}
+
 const args = parseArgs(process.argv);
 if (!args.input || !args["out-dir"]) {
   console.error("Usage: node cluster-recommendations.mjs --input final-reviewed-candidates.jsonl --out-dir site-dir [--metadata unique-keywords.jsonl]");
@@ -468,11 +742,38 @@ const clusterMap = new Map();
 const keywordRows = [];
 
 for (const row of deduped) {
+  if (isV2(row)) {
+    const canonical = canonicalKeyFromRow(row);
+    const derivation = derivePriority(row, canonical);
+    if (derivation.derivedRoute === "reject") continue;
+
+    const outputRow = buildV2Row(row, canonical, derivation, metadataByKeyword);
+    const clusterKey = `v2:${canonical.key}`;
+    if (!clusterMap.has(clusterKey)) {
+      clusterMap.set(clusterKey, {
+        priority: outputRow.priority,
+        name: outputRow.canonical_opportunity_label,
+        sourceName: canonical.key,
+        canonical_opportunity_key: canonical.key,
+        canonical_opportunity_label: outputRow.canonical_opportunity_label,
+        pageShape: outputRow.recommended_shape,
+        monetization: outputRow.monetization,
+        why: outputRow.priority_reason,
+        keywordRows: [],
+        schemaVersion: 2,
+      });
+    }
+    clusterMap.get(clusterKey).keywordRows.push(outputRow);
+    keywordRows.push(outputRow);
+    continue;
+  }
+
   const text = `${row.keyword} ${row.type || ""} ${row.reason || ""} ${row.recommended_shape || ""}`.toLowerCase();
   const definition = clusterDefinitions.find((cluster) => cluster.match(text));
   const report = reportText(definition);
-  if (!clusterMap.has(definition.name)) {
-    clusterMap.set(definition.name, {
+  const clusterKey = `legacy:${definition.name}`;
+  if (!clusterMap.has(clusterKey)) {
+    clusterMap.set(clusterKey, {
       priority: definition.priority,
       name: report.name,
       sourceName: definition.name,
@@ -480,35 +781,40 @@ for (const row of deduped) {
       monetization: report.monetization,
       why: report.why,
       keywordRows: [],
+      schemaVersion: 1,
     });
   }
 
-  const outputRow = {
-    priority: definition.priority,
-    cluster: report.name,
-    keyword: row.keyword,
-    type: row.type || inferType(definition),
-    volume: Number(row.volume || metadataByKeyword.get(metadataKey(row))?.volume || 0),
-    kd: Number(row.kd || metadataByKeyword.get(metadataKey(row))?.kd || 0),
-    cpc: Number(row.cpc || metadataByKeyword.get(metadataKey(row))?.cpc || 0),
-    page: Number(row.page || metadataByKeyword.get(metadataKey(row))?.page || 0),
-    recommended_shape: row.recommended_shape || report.pageShape,
-    monetization: row.monetization || report.monetization,
-    risk: row.risk || "medium",
-    reason: row.reason || report.why,
-  };
-  clusterMap.get(definition.name).keywordRows.push(outputRow);
+  const outputRow = buildLegacyRow(row, definition, report, metadataByKeyword);
+  clusterMap.get(clusterKey).keywordRows.push(outputRow);
   keywordRows.push(outputRow);
 }
 
-const priorityOrder = { P0: 0, P1: 1, P2: 2 };
 const clusters = [...clusterMap.values()].map((cluster) => {
   cluster.keywordRows.sort((a, b) => Number(b.cpc || 0) - Number(a.cpc || 0) || Number(b.volume || 0) - Number(a.volume || 0));
+  const bestPriority = cluster.keywordRows.reduce((best, row) => (
+    priorityOrder[row.priority] < priorityOrder[best] ? row.priority : best
+  ), "P2");
+  const totalVolume = cluster.keywordRows.reduce((sum, row) => sum + Number(row.volume || 0), 0);
+  const maxCpc = cluster.keywordRows.reduce((max, row) => Math.max(max, Number(row.cpc || 0)), 0);
+  const kdValues = cluster.keywordRows.map((row) => Number(row.kd || 0)).filter((value) => Number.isFinite(value) && value > 0);
+  const semanticSummary = cluster.schemaVersion === 2
+    ? {
+        dominant_intent_shape: summarizeClusterRows(cluster.keywordRows, "intent_shape"),
+        dominant_answer_source_model: summarizeClusterRows(cluster.keywordRows, "answer_source_model"),
+        dominant_freshness_need: summarizeClusterRows(cluster.keywordRows, "freshness_need"),
+        dominant_supply_control: summarizeClusterRows(cluster.keywordRows, "supply_control"),
+        dominant_natural_winner: summarizeClusterRows(cluster.keywordRows, "natural_winner"),
+        dominant_permutation_inflation: summarizeClusterRows(cluster.keywordRows, "permutation_inflation"),
+      }
+    : undefined;
   return {
     ...cluster,
-    totalVolume: cluster.keywordRows.reduce((sum, row) => sum + Number(row.volume || 0), 0),
-    maxCpc: cluster.keywordRows.reduce((max, row) => Math.max(max, Number(row.cpc || 0)), 0),
-    minKd: cluster.keywordRows.reduce((min, row) => Math.min(min, Number(row.kd || 0)), Infinity),
+    priority: bestPriority,
+    totalVolume,
+    maxCpc,
+    minKd: kdValues.length ? Math.min(...kdValues) : 0,
+    semanticSummary,
   };
 }).sort((a, b) => {
   const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -540,10 +846,13 @@ const summary = {
 fs.mkdirSync(outDir, { recursive: true });
 
 const jsonPath = path.join(outDir, "serp-review-recommendation-clusters.json");
+const opportunityJsonPath = path.join(outDir, "opportunity-clusters.json");
 const jsonlPath = path.join(outDir, "serp-review-recommendation-keywords.jsonl");
 const mdPath = path.join(outDir, "serp-review-recommendations.md");
+const opportunityMdPath = path.join(outDir, "opportunity-clusters.md");
 
 fs.writeFileSync(jsonPath, JSON.stringify({ summary, clusters }, null, 2) + "\n");
+fs.writeFileSync(opportunityJsonPath, JSON.stringify({ summary, clusters }, null, 2) + "\n");
 fs.writeFileSync(jsonlPath, keywordRows.map((row) => JSON.stringify(row)).join("\n") + (keywordRows.length ? "\n" : ""));
 
 const md = [];
@@ -560,27 +869,33 @@ for (const priority of ["P0", "P1", "P2"]) {
 }
 md.push("");
 md.push("优先级说明：");
-md.push("- P0：优先复核；非纯内容形态强，变现路径清楚，用户意图明确。");
-md.push("- P1：随后复核；机会成立，但还需要 SERP 弱点、数据供给或执行成本确认。");
-md.push("- P2：长尾或扩展复核；不是拒绝，只是商业价值、竞争或数据可得性可能更弱。");
+md.push("- P0：优先复核；供给可控、维护有界、差异化清楚，且不是由排列组合搜索量硬抬上来。");
+md.push("- P1：随后复核；机会成立，但数据供给、自然赢家或执行成本还需要确认。");
+md.push("- P2：长尾、cluster seed 或需数据源确认；不是自动拒绝。");
 md.push("");
 
 for (const cluster of clusters) {
   md.push(`## ${cluster.priority} - ${cluster.name}`);
   md.push("");
+  if (cluster.schemaVersion === 2) {
+    const summaryBadges = cluster.semanticSummary || {};
+    md.push(`- Canonical key: ${cluster.canonical_opportunity_key}`);
+    md.push(`- Badges: Supply=${summaryBadges.dominant_answer_source_model || "unknown"}; Freshness=${summaryBadges.dominant_freshness_need || "unknown"}; Control=${summaryBadges.dominant_supply_control || "unknown"}; Winner=${summaryBadges.dominant_natural_winner || "unknown"}; Permutation=${summaryBadges.dominant_permutation_inflation || "unknown"}`);
+  }
   md.push(`- 页面形态：${cluster.pageShape}`);
   md.push(`- 变现方式：${cluster.monetization}`);
   md.push(`- 为什么值得复核：${cluster.why}`);
   md.push(`- 关键词条目数：${cluster.keywordRows.length}；总搜索量：${cluster.totalVolume}；最高 CPC：${cluster.maxCpc}`);
   md.push("");
-  md.push("| 关键词 | 搜索量 | KD | CPC | 推荐页面形态 |");
-  md.push("| --- | ---: | ---: | ---: | --- |");
+  md.push("| 关键词 | 搜索量 | KD | CPC | Cap | 推荐页面形态 |");
+  md.push("| --- | ---: | ---: | ---: | --- | --- |");
   for (const row of cluster.keywordRows) {
-    md.push(`| ${row.keyword} | ${row.volume} | ${row.kd} | ${row.cpc} | ${String(row.recommended_shape).replaceAll("|", "/")} |`);
+    md.push(`| ${row.keyword} | ${row.volume} | ${row.kd} | ${row.cpc} | ${row.derived_cap || "legacy"} | ${String(row.recommended_shape).replaceAll("|", "/")} |`);
   }
   md.push("");
 }
 
 fs.writeFileSync(mdPath, md.join("\n"));
+fs.writeFileSync(opportunityMdPath, md.join("\n"));
 
-console.log(JSON.stringify({ summary, jsonPath, jsonlPath, mdPath }, null, 2));
+console.log(JSON.stringify({ summary, jsonPath, opportunityJsonPath, jsonlPath, mdPath, opportunityMdPath }, null, 2));

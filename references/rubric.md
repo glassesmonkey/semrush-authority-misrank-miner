@@ -22,6 +22,58 @@ Weak signal:
 - A tool could be invented, but users are not clearly asking for an input-output result.
 - The best page would still be mostly an article with a decorative widget.
 
+## Opportunity Supply Model
+
+Do not judge a keyword only by whether the result shape is clear. First infer how the correct answer would be produced.
+
+Prefer opportunities where the answer can be produced from deterministic logic, user-provided input transformation, stable public data, bounded periodic public data, reusable templates, commercially usable assets, or a scalable workflow.
+
+Be cautious when the answer primarily depends on live external data, licensed or proprietary databases, official inventory, schedules, prices, tickets, availability, event-specific facts, rapidly changing public facts, or subjective/UGC consensus.
+
+A clear lookup or data-page shape is not enough. A candidate becomes strong only when there is a credible supply advantage.
+
+## Supply Advantage
+
+Ask what an independent builder can do better than the natural winner.
+
+Valid advantages include calculation, personalization, aggregation, filtering, visualization, workflow completion, format conversion, comparison, structured checklists, historical views, scenario simulation, and asset filtering.
+
+Weak advantages include restating raw facts, copying official data, summarizing what a specialized data provider already does, or attaching a tiny widget to an article-shaped page.
+
+## Permutation Inflation
+
+When many keywords differ only by interchangeable entities, dates, locations, products, teams, routes, or event instances, infer the canonical opportunity before judging priority.
+
+Examples:
+
+- `team A vs team B player stats` -> entity-pair event stats lookup
+- `UA123 flight status` -> flight status lookup
+- `artist city tickets` -> event ticket inventory lookup
+- `city zip code` -> postal code lookup
+- `unit A to unit B` -> unit converter
+- `holiday year` -> date calendar lookup
+
+Large volume from permutations should not raise priority by itself. It matters only after the canonical opportunity passes supply control, maintenance, and natural-winner checks.
+
+## P0 Gate
+
+A candidate may be P0 only when all are true:
+
+1. The user wants a concrete output, not just information.
+2. A non-content page is materially better than article, forum, video, or list results.
+3. The answer can be produced accurately from controllable inputs, deterministic logic, stable data, or a clearly available data source.
+4. The page has value-add beyond restating raw facts.
+5. Maintenance burden is low or bounded.
+6. Legal, IP, and platform risk is acceptable.
+7. The keyword is not merely one permutation inside a large entity/date/location/event matrix.
+8. If official or specialized data providers are the natural winner, explicit independent value-add exists.
+
+## Unknown Handling
+
+Use `unknown` when the keyword-only view cannot support a confident judgment. Unknown does not mean reject, but unknown also cannot support P0.
+
+Unknown in supply control, natural winner, maintenance burden, legal/platform risk, or canonical identity should trigger a cap or review route, not a confident high-priority recommendation.
+
 ## Types
 
 - A. Native tool: calculator, converter, generator, checker, estimator, lookup, tracker, finder, analyzer.
@@ -35,13 +87,13 @@ Weak signal:
 
 ## Priority
 
-Use priority only after the keyword passes second-pass review:
+Subagents may provide priority hints, but final priority is derived by the normalizer/clusterer after canonical grouping and metric rehydration:
 
 - P0: verify first. Strong non-content shape, clear monetization, clear user intent, low or manageable risk, and the page can be built at scale.
 - P1: valid opportunity. The product shape is real, but SERP weakness, monetization, data supply, or execution cost still needs more confirmation.
 - P2: long-tail or expansion verification. The intent is valid but commercial value is weaker, SERPs may be crowded, or the opportunity is better as part of a cluster.
 
-Do not use priority as a way to hide uncertainty. If a keyword is broad, pure content, unsafe, local-only, or IP-heavy, reject it instead of labeling it P2.
+Do not use priority as a way to hide uncertainty. If a keyword is broad, pure content, unsafe, local-only, or IP-heavy, route it to reject or low-priority review evidence instead of promoting it.
 
 ## First-Pass Rule
 
