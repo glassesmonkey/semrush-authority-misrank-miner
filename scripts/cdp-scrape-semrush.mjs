@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const DEFAULT_FILTER = {
@@ -199,20 +200,90 @@ async function openChromeTab(cdpBase, targetUrl) {
   return response.json();
 }
 
-async function findOrOpenTab(cdpBase, targetUrl, domain, forceNew) {
-  const targets = await fetchJson(`${cdpBase}/json/list`);
-  const organicTargets = targets
-    .filter((target) => target.type === "page" && target.webSocketDebuggerUrl)
-    .filter((target) => String(target.url || "").includes("/analytics/organic/positions"));
+function pageWsUrlForTarget(cdpBase, targetId) {
+  const base = new URL(cdpBase);
+  const protocol = base.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${base.host}/devtools/page/${targetId}`;
+}
 
-  if (!forceNew) {
-    const exact = organicTargets.find((target) => String(target.url || "").includes(`q=${encodeURIComponent(domain)}`) || String(target.url || "").includes(`q=${domain}`));
-    if (exact) return { target: exact, opened: false };
-    if (organicTargets[0]) return { target: organicTargets[0], opened: false };
+function defaultDevToolsActivePortPath() {
+  if (process.platform === "darwin") {
+    return path.join(os.homedir(), "Library/Application Support/Google/Chrome/DevToolsActivePort");
   }
+  return "";
+}
 
-  const target = await openChromeTab(cdpBase, targetUrl);
-  return { target, opened: true };
+function readBrowserWsUrlFromActivePort(cdpBase, args = {}) {
+  const activePortPath = args["devtools-active-port"] || process.env.CHROME_DEVTOOLS_ACTIVE_PORT || defaultDevToolsActivePortPath();
+  if (!activePortPath || !fs.existsSync(activePortPath)) return null;
+  const [port, browserPath] = fs.readFileSync(activePortPath, "utf8").trim().split(/\n+/);
+  if (!port || !browserPath) return null;
+  const base = new URL(cdpBase);
+  const protocol = base.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${base.hostname}:${port}${browserPath}`;
+}
+
+async function findOrOpenTabViaBrowserWs(cdpBase, targetUrl, domain, forceNew, args = {}) {
+  const browserWsUrl = args["browser-ws"] || readBrowserWsUrlFromActivePort(cdpBase, args);
+  if (!browserWsUrl) return null;
+
+  const browser = new CdpClient(browserWsUrl);
+  try {
+    await browser.connect();
+    const targetsResult = await browser.send("Target.getTargets");
+    const targets = (targetsResult.targetInfos || [])
+      .filter((target) => target.type === "page")
+      .map((target) => ({
+        type: "page",
+        id: target.targetId,
+        url: target.url,
+        title: target.title,
+        webSocketDebuggerUrl: pageWsUrlForTarget(cdpBase, target.targetId),
+      }));
+
+    const organicTargets = targets.filter((target) => String(target.url || "").includes("/analytics/organic/positions"));
+    if (!forceNew) {
+      const exact = organicTargets.find((target) => String(target.url || "").includes(`q=${encodeURIComponent(domain)}`) || String(target.url || "").includes(`q=${domain}`));
+      if (exact) return { target: exact, opened: false };
+      if (organicTargets[0]) return { target: organicTargets[0], opened: false };
+    }
+
+    const created = await browser.send("Target.createTarget", { url: targetUrl });
+    return {
+      target: {
+        type: "page",
+        id: created.targetId,
+        url: targetUrl,
+        title: "",
+        webSocketDebuggerUrl: pageWsUrlForTarget(cdpBase, created.targetId),
+      },
+      opened: true,
+    };
+  } finally {
+    browser.close();
+  }
+}
+
+async function findOrOpenTab(cdpBase, targetUrl, domain, forceNew, args = {}) {
+  try {
+    const targets = await fetchJson(`${cdpBase}/json/list`);
+    const organicTargets = targets
+      .filter((target) => target.type === "page" && target.webSocketDebuggerUrl)
+      .filter((target) => String(target.url || "").includes("/analytics/organic/positions"));
+
+    if (!forceNew) {
+      const exact = organicTargets.find((target) => String(target.url || "").includes(`q=${encodeURIComponent(domain)}`) || String(target.url || "").includes(`q=${domain}`));
+      if (exact) return { target: exact, opened: false };
+      if (organicTargets[0]) return { target: organicTargets[0], opened: false };
+    }
+
+    const target = await openChromeTab(cdpBase, targetUrl);
+    return { target, opened: true };
+  } catch (error) {
+    const fallback = await findOrOpenTabViaBrowserWs(cdpBase, targetUrl, domain, forceNew, args);
+    if (fallback) return fallback;
+    throw error;
+  }
 }
 
 class CdpClient {
@@ -606,7 +677,7 @@ async function main() {
 
   let cdp;
   try {
-    const { target } = await findOrOpenTab(cdpBase, targetUrl, domain, Boolean(args["open-new"]));
+    const { target } = await findOrOpenTab(cdpBase, targetUrl, domain, Boolean(args["open-new"]), args);
     cdp = new CdpClient(target.webSocketDebuggerUrl);
     await cdp.connect();
 
