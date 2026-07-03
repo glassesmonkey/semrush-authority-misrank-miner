@@ -76,7 +76,7 @@ Use the bundled scraper. It captures the `organic.Positions` RPC request from th
 SEMrush treats root domains and subdomains as different search scopes. If the user gives `gamefaqs.gamespot.com`, keep that exact value as `q` and scrape with `searchType=subdomain`; do not collapse it to `gamespot.com` or leave `searchType=domain`. The scraper auto-detects common subdomain targets, inherits `searchType=subdomain` from a provided SEMrush URL, and also accepts `--search-type subdomain` when you need to be explicit.
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrape-semrush.mjs \
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrape-semrush.mjs" \
   --domain reddit.com \
   --out-dir semrush-authority-runs/20260702-120000/reddit.com
 ```
@@ -84,7 +84,7 @@ node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrap
 For a subdomain target:
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrape-semrush.mjs \
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrape-semrush.mjs" \
   --domain gamefaqs.gamespot.com \
   --search-type subdomain \
   --out-dir semrush-authority-runs/20260702-120000/gamefaqs.gamespot.com
@@ -93,7 +93,7 @@ node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrap
 If the user provides a SEMrush URL, pass it with `--url`:
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrape-semrush.mjs \
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/cdp-scrape-semrush.mjs" \
   --domain gamefaqs.gamespot.com \
   --url 'https://sem.3ue.co/analytics/organic/positions/?...' \
   --out-dir semrush-authority-runs/20260702-120000/gamefaqs.gamespot.com
@@ -113,7 +113,7 @@ If scraping fails:
 After `raw-rows.jsonl` exists:
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/prepare-keyword-chunks.mjs \
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/prepare-keyword-chunks.mjs" \
   --input semrush-authority-runs/20260702-120000/reddit.com/raw-rows.jsonl \
   --out-dir semrush-authority-runs/20260702-120000/reddit.com \
   --chunk-size 500
@@ -137,7 +137,7 @@ Prompt template:
 
 ```text
 Screen exactly one SEMrush keyword chunk for non-pure-content site opportunities.
-Read rubric: /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/references/rubric.md.
+Read rubric: `$HOME/.codex/skills/semrush-authority-misrank-miner/references/rubric.md`.
 Input: <domain-dir>/chunks-500/chunk-XX.jsonl.
 The input rows are keyword-only. Do not read raw rows, unique-keywords.jsonl, reports, or any file that exposes volume, traffic, KD, CPC, position, or ranking URLs.
 Output recommended SERP-verification keywords only as JSONL to <domain-dir>/first-pass-results/chunk-XX.jsonl.
@@ -152,7 +152,7 @@ Use a rolling queue of up to 6 worker subagents unless the user asks otherwise. 
 Then merge:
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/merge-jsonl-results.mjs \
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/merge-jsonl-results.mjs" \
   --input-dir <domain-dir>/first-pass-results \
   --pattern '^chunk-[0-9]+\\.jsonl$' \
   --out <domain-dir>/first-pass-candidates.jsonl \
@@ -164,7 +164,7 @@ node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/merge-jso
 Split first-pass candidates into 100-row review chunks:
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/prepare-keyword-chunks.mjs \
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/prepare-keyword-chunks.mjs" \
   --input <domain-dir>/first-pass-candidates.jsonl \
   --out-dir <domain-dir> \
   --chunk-size 100 \
@@ -177,7 +177,7 @@ For each `final-review-chunks/review-XX.jsonl`, spawn a worker subagent:
 
 ```text
 Second-pass screen exactly one batch of first-pass SEMrush keyword candidates.
-Read strict rubric: /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/references/rubric.md.
+Read strict rubric: `$HOME/.codex/skills/semrush-authority-misrank-miner/references/rubric.md`.
 Input: <domain-dir>/final-review-chunks/review-XX.jsonl.
 The input rows are keyword-only. Do not read raw rows, unique-keywords.jsonl, first-pass source files, reports, or any file that exposes volume, traffic, KD, CPC, position, ranking URLs, or first-pass rationale.
 Output only truly SERP-verification-worthy keywords as JSONL to <domain-dir>/final-review-results/review-XX.jsonl.
@@ -192,7 +192,7 @@ Final response: output path and count only.
 Merge:
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/merge-jsonl-results.mjs \
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/merge-jsonl-results.mjs" \
   --input-dir <domain-dir>/final-review-results \
   --pattern '^review-[0-9]+\\.jsonl$' \
   --out <domain-dir>/final-reviewed-candidates.jsonl \
@@ -206,7 +206,7 @@ The cluster script rehydrates metrics from `unique-keywords.jsonl` after screeni
 Markdown reports use Chinese headings, labels, priority explanations, and built-in cluster descriptions by default.
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/cluster-recommendations.mjs \
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/cluster-recommendations.mjs" \
   --input <domain-dir>/final-reviewed-candidates.jsonl \
   --out-dir <domain-dir>
 ```
@@ -234,7 +234,7 @@ For multi-domain jobs, maintain `run-index.json` with:
 Build or refresh it with:
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/build-run-index.mjs \
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/build-run-index.mjs" \
   --run-dir semrush-authority-runs/20260702-120000
 ```
 
@@ -245,7 +245,7 @@ Run this after each domain finishes and again at the end of a multi-domain run.
 When editing this skill or diagnosing pipeline drift, run:
 
 ```bash
-node /Users/yxgc/.codex/skills/semrush-authority-misrank-miner/scripts/validate-fixtures.mjs
+node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/validate-fixtures.mjs"
 ```
 
 This verifies JSONL parsing, keyword dedupe, chunking, merging, P0/P1/P2 clustering, required recommendation fields, and run-index generation against small local fixtures.
