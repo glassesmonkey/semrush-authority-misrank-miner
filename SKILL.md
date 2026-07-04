@@ -27,6 +27,14 @@ Do not reduce screening quality to save tokens, time, or agent work. Token spend
 - If the run is too large, slow, expensive, or operationally blocked, pause with a clear status and ask for a scope decision instead of silently degrading the method.
 - Do not summarize or sample a chunk when the workflow requires full chunk screening. Every chunk must be processed or explicitly marked failed/skipped in the run index.
 
+## Subagent Model Contract
+
+Screening subagents must inherit the current Codex model and reasoning configuration.
+
+- Do not launch first-pass or second-pass workers on a smaller, cheaper, faster, or lower-reasoning model.
+- Do not set model or reasoning overrides unless the subagent tool requires explicit pass-through of the exact current model and reasoning values.
+- If the available subagent launcher cannot guarantee current-model/current-reasoning inheritance, pause and ask for a tooling or scope decision instead of running degraded workers.
+
 ## Default Inputs
 
 Ask for only what is missing:
@@ -187,7 +195,7 @@ Important:
 
 Read `references/rubric.md` and `references/schema-v2.md` before spawning subagents.
 
-For each `chunks-500/chunk-XX.jsonl`, spawn a worker subagent. Do not set model or reasoning overrides; let subagents inherit the current defaults.
+For each `chunks-500/chunk-XX.jsonl`, spawn a worker subagent under the Subagent Model Contract above.
 
 Prompt template:
 
@@ -232,7 +240,7 @@ node "$HOME/.codex/skills/semrush-authority-misrank-miner/scripts/prepare-keywor
   --prefix review
 ```
 
-For each `final-review-chunks/review-XX.jsonl`, spawn a worker subagent:
+For each `final-review-chunks/review-XX.jsonl`, spawn a worker subagent under the Subagent Model Contract above:
 
 ```text
 Second-pass screen exactly one batch of first-pass SEMrush keyword candidates.
