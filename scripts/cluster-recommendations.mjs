@@ -38,6 +38,155 @@ function includesAny(text, patterns) {
   return patterns.some((pattern) => pattern.test(text));
 }
 
+const googleNativeRiskValues = new Set(["low", "medium", "high", "unknown"]);
+
+const googleNativeHighRiskRules = [
+  {
+    name: "phone_or_area_code_lookup",
+    pattern: /\b(?:\d{3}\s+(?:area|phone|telephone)\s+code|area code\s+\d{3}|what area code is|location of area code|ddd internacional|country code|dial(?:ing|ling) code)\b/i,
+    reason: "phone, area, and country code lookups are usually single-value Google direct answers.",
+  },
+  {
+    name: "simple_unit_conversion",
+    pattern: /\b\d+(?:\.\d+)?\s*(?:k|km|kilometers?|miles?|lbs?|pounds?|kg|cm|mm|inches?|feet|ft|yards?|meters?|metres?|celsius|fahrenheit|f)\s+(?:in|to)\s+(?:k|km|kilometers?|miles?|lbs?|pounds?|kg|cm|mm|inches?|feet|ft|yards?|meters?|metres?|celsius|fahrenheit|f)\b/i,
+    reason: "single unit conversions are covered by Google converter widgets.",
+  },
+  {
+    name: "simple_date_or_holiday_lookup",
+    pattern: /\b(?:when is|what day is|date of|eid|ramadan|father'?s day|mother'?s day|purim|passover|hanukkah|easter|thanksgiving|labor day|teacher appreciation day|mercury retrograde)\b.*\b(?:202[0-9]|date|when|day|start)\b/i,
+    reason: "single holiday/date lookups are usually answered directly by Google or AI Overview.",
+  },
+  {
+    name: "symbol_copy_lookup",
+    pattern: /\b(?:section sign|tm sign|degree symbol|sign for degrees|downward arrow|and sign|male and female symbols|unicode|html entity|copy symbol|biohazard symbol|radiation symbol|copyright symbol|trademark symbol|registered symbol)\b/i,
+    reason: "single symbol copy/input queries have weak differentiation beyond direct snippets.",
+  },
+  {
+    name: "local_time_lookup",
+    pattern: /\b(?:what time (?:is it|it is) in|current time in|local time in|time in)\b|\b(?:rep dom|dominican republic|dr)\s+time\b/i,
+    reason: "single current-time lookups are direct Google time answers.",
+  },
+  {
+    name: "simple_color_value_lookup",
+    pattern: /\b(?:hex code|color code|colour name|color name|gold hex|gold color code|light pink|copper color|mahogany color|french blue)\b/i,
+    reason: "single color value lookups are commonly satisfied by instant snippets or color widgets.",
+  },
+  {
+    name: "simple_prayer_time_lookup",
+    pattern: /\b(?:prayer time|isha time|fajr|asr|subuh)\b/i,
+    reason: "single prayer-time lookups are direct local/time answers unless the product adds a broader planner.",
+  },
+  {
+    name: "simple_fact_answer",
+    pattern: /\b(?:density of air)\b/i,
+    reason: "single factual answers are easy for Google snippets or AI Overview to satisfy.",
+  },
+];
+
+const googleNativeMediumRiskRules = [
+  {
+    name: "generic_translation_tool",
+    pattern: /\b(?:translator|translation|translate|spanish to english|english to [a-z]+|[a-z]+ to english)\b/i,
+    reason: "generic translation intent has strong Google Translate and SERP widget competition.",
+  },
+  {
+    name: "simple_map_or_airport_lookup",
+    pattern: /\b(?:county map|airport code|terminal \d+|hawaii map|islands map|oklahoma map|scotland map)\b/i,
+    reason: "simple maps, airport codes, and terminal facts are often covered by Google results or Maps surfaces.",
+  },
+  {
+    name: "single_month_calendar",
+    pattern: /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+202[0-9]\b/i,
+    reason: "single month calendars are easy to answer and crowded; they need strong printable/planner differentiation.",
+  },
+];
+
+function googleNativeSearchText(row) {
+  const components = row.canonical_key_components && typeof row.canonical_key_components === "object"
+    ? row.canonical_key_components
+    : {};
+  return [
+    row.keyword,
+    row.intent_shape,
+    row.canonical_opportunity_label,
+    components.task_family,
+    components.task_object,
+    components.output_shape,
+    components.input_pattern,
+    row.recommended_shape,
+    row.reason,
+  ].filter(Boolean).join(" ");
+}
+
+function hasGoogleNativeEscapeHatch(row) {
+  const text = googleNativeSearchText(row);
+  return includesAny(text, [
+    /\b(?:diagnostic|troubleshoot|workflow|checklist|planner|comparison|compare|selector|matrix|quote|pricing|cost|estimate|estimator)\b/i,
+    /\b(?:batch|bulk|csv|api|upload|file|subtitle|downloadable|printable|worksheet|practice|quiz|step[- ]by[- ]step)\b/i,
+    /\b(?:personalized|filter|filters|historical|visuali[sz]ation|calendar export|ics|meeting-time|team-size|seat|package)\b/i,
+  ]);
+}
+
+function inferGoogleNativeAnswerRisk(row) {
+  const explicitRisk = String(row.google_native_answer_risk || "").toLowerCase();
+  if (googleNativeRiskValues.has(explicitRisk)) {
+    return {
+      risk: explicitRisk,
+      source: "explicit",
+      reason: row.google_native_risk_reason || `explicit ${explicitRisk} Google-native answer risk`,
+      rule: "explicit",
+    };
+  }
+
+  const text = googleNativeSearchText(row);
+  const highRule = googleNativeHighRiskRules.find((rule) => rule.pattern.test(text));
+  if (highRule) {
+    return {
+      risk: hasGoogleNativeEscapeHatch(row) ? "medium" : "high",
+      source: "derived",
+      reason: highRule.reason,
+      rule: highRule.name,
+    };
+  }
+
+  const mediumRule = googleNativeMediumRiskRules.find((rule) => rule.pattern.test(text));
+  if (mediumRule) {
+    return {
+      risk: "medium",
+      source: "derived",
+      reason: mediumRule.reason,
+      rule: mediumRule.name,
+    };
+  }
+
+  const components = row.canonical_key_components && typeof row.canonical_key_components === "object"
+    ? row.canonical_key_components
+    : {};
+  const taskFamily = String(components.task_family || row.intent_shape || "").toLowerCase();
+  const outputShape = String(components.output_shape || "").toLowerCase();
+  const simpleNativeTool =
+    ["calculator", "converter", "lookup"].includes(taskFamily) &&
+    ["deterministic_logic", "stable_public_data"].includes(row.answer_source_model) &&
+    ["calculation", "conversion", "none", "unknown", undefined].includes(row.differentiation_basis) &&
+    /(?:instant|single|copy|status_panel)/i.test(outputShape);
+
+  if (simpleNativeTool) {
+    return {
+      risk: hasGoogleNativeEscapeHatch(row) ? "medium" : "high",
+      source: "derived",
+      reason: "simple calculator, converter, or lookup shape is vulnerable to Google widgets unless it adds durable workflow value.",
+      rule: "simple_native_tool_shape",
+    };
+  }
+
+  return {
+    risk: "low",
+    source: "derived",
+    reason: "no obvious Google direct-answer or widget risk",
+    rule: "none",
+  };
+}
+
 function inferType(definition) {
   const text = `${definition.name} ${definition.pageShape}`.toLowerCase();
   if (/calculator|converter|checker|lookup|estimator|diagnostic|solver|generator|tracker|status|utility|translator|pronunciation/.test(text)) return "A";
@@ -96,7 +245,7 @@ const clusterDefinitions = [
     pageShape: "Scope-based cost estimator and quote checklist",
     monetization: "Service lead-gen, affiliate, ads",
     why: "The query has cost intent, many variables, and a clear service or quote path.",
-    match: (text) => includesAny(text, [/water softener|water heater|septic|storage unit|generator|environmental site assessment|inspection checklist|propane|tattoo cost|bridal gown budget/i]),
+    match: (text) => includesAny(text, [/water softener|water heater|septic|storage unit|(?:whole[- ]house|home|backup|standby|portable)\s+generator|generator\s+(?:installation|cost|sizing|quote)|environmental site assessment|inspection checklist|propane|tattoo cost|bridal gown budget/i]),
   },
   {
     name: "PC, hardware, and equipment configurators",
@@ -112,7 +261,7 @@ const clusterDefinitions = [
     pageShape: "Data-backed calculator, trade analyzer, or matchup lookup",
     monetization: "Ads, subscription, affiliate",
     why: "The expected result is interactive and recurring.",
-    match: (text) => includesAny(text, [/fantasy|trade analyzer|trade calculator|dynasty|batter vs pitcher|playoff predictor/i]),
+    match: (text) => includesAny(text, [/fantasy|trade analyzer|trade calculator|\bdynasty\s+(?:football|basketball|baseball|rankings?|trade|value|rookie|superflex)|(?:football|basketball|baseball)\s+dynasty|batter vs pitcher|playoff predictor/i]),
   },
   {
     name: "Work calendar and pay calculators",
@@ -192,7 +341,7 @@ const clusterDefinitions = [
     pageShape: "Time, ratio, serving, substitution, and ingredient-density calculators",
     monetization: "Ads, affiliate",
     why: "The answer changes with ingredients, quantities, equipment, and preference.",
-    match: (text) => includesAny(text, [/egg|boil|cook|ribs|turkey|rice|coffee|steak|substitute|cornstarch|keg|cup|grams|spoon|butter|garlic|tbsp|tsp|calorie|recipe|caffeine/i]),
+    match: (text) => includesAny(text, [/\b(?:egg|boil|cook|ribs|turkey|rice|coffee|steak|substitute|cornstarch|keg|grams?|spoons?|butter|garlic|tbsp|tsp|calorie|recipe|caffeine)\b|\b(?:\d+\s*)?cups?\s+(?:in|to|en|ml|grams?)\b|\b(?:mls?|milliliters?)\s+(?:a|per|in)\s+(?:tablespoon|cup)\b/i]),
   },
   {
     name: "Creative generators and visual libraries",
@@ -542,10 +691,36 @@ function applyCap(priority, cap) {
   return priority;
 }
 
+function hasExplicitRejectSignal(row) {
+  return row.route_hint === "reject" || row.subagent_cap_hint === "reject";
+}
+
+function shouldRejectForGoogleNative(row, googleNative) {
+  return googleNative.risk === "high" &&
+    googleNative.source === "explicit" &&
+    hasExplicitRejectSignal(row);
+}
+
 function derivePriority(row, canonical) {
   const reasons = [];
   let derivedCap = "none";
   let derivedRoute = row.route_hint || "serp_review";
+  const googleNative = inferGoogleNativeAnswerRisk(row);
+
+  if (shouldRejectForGoogleNative(row, googleNative)) {
+    return {
+      priority: "P2",
+      prioritySource: "derived",
+      derivedCap: "reject",
+      derivedRoute: "reject",
+      derivedCapReason: `high Google-native answer risk: ${googleNative.reason}`,
+      priorityReason: "Rejected because Google direct answers, AI Overview, or native SERP widgets can satisfy the query with little independent value-add.",
+      googleNativeAnswerRisk: googleNative.risk,
+      googleNativeRiskReason: googleNative.reason,
+      googleNativeRiskSource: googleNative.source,
+      googleNativeRiskRule: googleNative.rule,
+    };
+  }
 
   const noIndependentPath =
     row.non_content_advantage === "low" &&
@@ -567,9 +742,20 @@ function derivePriority(row, canonical) {
         ? "no non-content advantage, no differentiation, and no plausible independent supply path"
         : "official or marketplace inventory with no independent value-add",
       priorityReason: "Derived reject; route_hint alone is not sufficient for rejection.",
+      googleNativeAnswerRisk: googleNative.risk,
+      googleNativeRiskReason: googleNative.reason,
+      googleNativeRiskSource: googleNative.source,
+      googleNativeRiskRule: googleNative.rule,
     };
   }
 
+  if (googleNative.risk === "high") {
+    derivedCap = "cap_P2";
+    reasons.push(`high Google-native answer risk, kept for agent-reviewed evidence: ${googleNative.reason}`);
+  } else if (googleNative.risk === "medium") {
+    derivedCap = "cap_P2";
+    reasons.push(`medium Google-native answer risk: ${googleNative.reason}`);
+  }
   if (isDynamicSource(row) && ["weak", "unknown", undefined].includes(row.supply_control)) {
     derivedCap = "cap_P2";
     reasons.push("dynamic or official data with weak/unknown supply control");
@@ -643,6 +829,10 @@ function derivePriority(row, canonical) {
     priorityReason: priority === "P0"
       ? "P0 allowed by strong supply control, bounded maintenance, clear differentiation, and high non-content advantage."
       : `Priority derived from semantic evidence${reasons.length ? `; cap applied: ${reasons.join("; ")}` : ""}.`,
+    googleNativeAnswerRisk: googleNative.risk,
+    googleNativeRiskReason: googleNative.reason,
+    googleNativeRiskSource: googleNative.source,
+    googleNativeRiskRule: googleNative.rule,
   };
 }
 
@@ -661,6 +851,15 @@ function buildLegacyRow(row, definition, report, metadataByKeyword) {
     monetization: row.monetization || report.monetization,
     risk: row.risk || "medium",
     reason: row.reason || report.why,
+  };
+}
+
+function buildRejectedRow(row, reason, extra = {}) {
+  return {
+    keyword: String(row.keyword || "").trim(),
+    derived_route: "reject",
+    reason,
+    ...extra,
   };
 }
 
@@ -701,6 +900,10 @@ function buildV2Row(row, canonical, derivation, metadataByKeyword) {
     maintenance_burden: row.maintenance_burden || "unknown",
     legal_or_platform_risk: row.legal_or_platform_risk || "unknown",
     permutation_inflation: row.permutation_inflation || "unknown",
+    google_native_answer_risk: derivation.googleNativeAnswerRisk || row.google_native_answer_risk || "unknown",
+    google_native_risk_reason: derivation.googleNativeRiskReason || row.google_native_risk_reason || "",
+    google_native_risk_source: derivation.googleNativeRiskSource || "unknown",
+    google_native_risk_rule: derivation.googleNativeRiskRule || "unknown",
     confidence: row.confidence || "medium",
     canonical_key_components: canonical.components || {},
     hidden_metrics_in_subagent_row: hasHiddenMetrics(row),
@@ -730,6 +933,7 @@ const metadataByKeyword = new Map(metadataRows.filter((row) => metadataKey(row))
 const rows = readJsonl(inputPath).filter((row) => String(row.keyword || "").trim());
 const seen = new Set();
 const deduped = [];
+const rejectedRows = [];
 
 for (const row of rows) {
   const key = metadataKey(row);
@@ -745,7 +949,16 @@ for (const row of deduped) {
   if (isV2(row)) {
     const canonical = canonicalKeyFromRow(row);
     const derivation = derivePriority(row, canonical);
-    if (derivation.derivedRoute === "reject") continue;
+    if (derivation.derivedRoute === "reject") {
+      rejectedRows.push(buildRejectedRow(row, derivation.derivedCapReason, {
+        schema_version: 2,
+        google_native_answer_risk: derivation.googleNativeAnswerRisk || "unknown",
+        google_native_risk_reason: derivation.googleNativeRiskReason || "",
+        google_native_risk_source: derivation.googleNativeRiskSource || "unknown",
+        google_native_risk_rule: derivation.googleNativeRiskRule || "unknown",
+      }));
+      continue;
+    }
 
     const outputRow = buildV2Row(row, canonical, derivation, metadataByKeyword);
     const clusterKey = `v2:${canonical.key}`;
@@ -769,6 +982,8 @@ for (const row of deduped) {
   }
 
   const text = `${row.keyword} ${row.type || ""} ${row.reason || ""} ${row.recommended_shape || ""}`.toLowerCase();
+  const googleNative = inferGoogleNativeAnswerRisk(row);
+
   const definition = clusterDefinitions.find((cluster) => cluster.match(text));
   const report = reportText(definition);
   const clusterKey = `legacy:${definition.name}`;
@@ -786,6 +1001,13 @@ for (const row of deduped) {
   }
 
   const outputRow = buildLegacyRow(row, definition, report, metadataByKeyword);
+  outputRow.google_native_answer_risk = googleNative.risk;
+  outputRow.google_native_risk_reason = googleNative.reason;
+  outputRow.google_native_risk_source = googleNative.source;
+  outputRow.google_native_risk_rule = googleNative.rule;
+  if (["medium", "high"].includes(googleNative.risk)) {
+    outputRow.priority = "P2";
+  }
   clusterMap.get(clusterKey).keywordRows.push(outputRow);
   keywordRows.push(outputRow);
 }
@@ -830,6 +1052,7 @@ keywordRows.sort((a, b) => {
 
 const summary = {
   sourceCandidates: rows.length,
+  rejectedCandidates: rejectedRows.length,
   recommendedClusters: clusters.length,
   recommendedKeywords: keywordRows.length,
   byPriority: Object.fromEntries(
@@ -848,17 +1071,20 @@ fs.mkdirSync(outDir, { recursive: true });
 const jsonPath = path.join(outDir, "serp-review-recommendation-clusters.json");
 const opportunityJsonPath = path.join(outDir, "opportunity-clusters.json");
 const jsonlPath = path.join(outDir, "serp-review-recommendation-keywords.jsonl");
+const rejectedJsonlPath = path.join(outDir, "serp-review-rejected-keywords.jsonl");
 const mdPath = path.join(outDir, "serp-review-recommendations.md");
 const opportunityMdPath = path.join(outDir, "opportunity-clusters.md");
 
 fs.writeFileSync(jsonPath, JSON.stringify({ summary, clusters }, null, 2) + "\n");
 fs.writeFileSync(opportunityJsonPath, JSON.stringify({ summary, clusters }, null, 2) + "\n");
 fs.writeFileSync(jsonlPath, keywordRows.map((row) => JSON.stringify(row)).join("\n") + (keywordRows.length ? "\n" : ""));
+fs.writeFileSync(rejectedJsonlPath, rejectedRows.map((row) => JSON.stringify(row)).join("\n") + (rejectedRows.length ? "\n" : ""));
 
 const md = [];
 md.push("# SERP 复核推荐词簇");
 md.push("");
 md.push(`二筛候选来源数：${summary.sourceCandidates}`);
+md.push(`Google 原生答案/无独立供给剔除数：${summary.rejectedCandidates}`);
 md.push(`推荐词簇数：${summary.recommendedClusters}`);
 md.push(`推荐关键词条目数：${summary.recommendedKeywords}`);
 md.push("");
@@ -871,7 +1097,8 @@ md.push("");
 md.push("优先级说明：");
 md.push("- P0：优先复核；供给可控、维护有界、差异化清楚，且不是由排列组合搜索量硬抬上来。");
 md.push("- P1：随后复核；机会成立，但数据供给、自然赢家或执行成本还需要确认。");
-md.push("- P2：长尾、cluster seed 或需数据源确认；不是自动拒绝。");
+md.push("- P2：长尾、cluster seed、需数据源确认，或存在 Google 原生答案风险；不是自动拒绝。");
+md.push("- 剔除：单值答案、通用计算/转换/翻译、区号/日期/符号等 Google 可直接满足且缺少独立价值的查询。");
 md.push("");
 
 for (const cluster of clusters) {
@@ -898,4 +1125,4 @@ for (const cluster of clusters) {
 fs.writeFileSync(mdPath, md.join("\n"));
 fs.writeFileSync(opportunityMdPath, md.join("\n"));
 
-console.log(JSON.stringify({ summary, jsonPath, opportunityJsonPath, jsonlPath, mdPath, opportunityMdPath }, null, 2));
+console.log(JSON.stringify({ summary, jsonPath, opportunityJsonPath, jsonlPath, rejectedJsonlPath, mdPath, opportunityMdPath }, null, 2));

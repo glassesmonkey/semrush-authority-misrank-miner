@@ -141,15 +141,19 @@ assert(markdownReport.includes("页面形态"), "markdown report should use Chin
 assert(!markdownReport.includes("Priority meanings:"), "markdown report should not use English priority heading");
 
 const recommendationRows = readJsonl(path.join(siteDir, "serp-review-recommendation-keywords.jsonl"));
-assert(recommendationRows.length === 6, `expected 6 recommendation rows, got ${recommendationRows.length}`);
+assert(recommendationRows.length === 6, `expected 6 recommendation rows after keyword-pattern risk capping, got ${recommendationRows.length}`);
 assert(new Set(recommendationRows.map((row) => row.keyword.toLowerCase())).size === recommendationRows.length, "recommendation JSONL has duplicate keywords");
 assertRequiredRecommendationFields(recommendationRows);
+const degreeSymbol = recommendationRows.find((row) => row.keyword === "degree symbol keyboard");
+assert(degreeSymbol?.priority === "P2", "keyword-pattern Google-native risk should cap legacy rows to P2, not delete them");
+assert(degreeSymbol?.google_native_answer_risk === "high", "legacy rows should keep Google-native risk audit fields");
 const hydratedKnowledgeBase = recommendationRows.find((row) => row.keyword === "knowledge base software");
 assert(hydratedKnowledgeBase?.volume === 2240000, "cluster step should rehydrate volume from unique-keywords.jsonl");
 assert(hydratedKnowledgeBase?.cpc === 41.5, "cluster step should rehydrate cpc from unique-keywords.jsonl");
 
 const clusterJson = readJson(path.join(siteDir, "serp-review-recommendation-clusters.json"));
 assert(clusterJson.summary.recommendedKeywords === 6, "cluster summary keyword count mismatch");
+assert(clusterJson.summary.rejectedCandidates === 0, "keyword-pattern risk alone should not create rejected candidates");
 assert(clusterJson.summary.byPriority.P0.keywords >= 1, "fixture should produce at least one P0 keyword");
 assert(clusterJson.summary.byPriority.P1.keywords >= 1, "fixture should produce at least one P1 keyword");
 assert(clusterJson.summary.byPriority.P2.keywords >= 1, "fixture should produce at least one P2 keyword");
@@ -184,6 +188,7 @@ for (const row of v2SubagentRows) {
   assertEnum(row, "intent_shape", ["calculator", "converter", "checker", "lookup", "tracker", "generator", "workflow", "planner", "library", "comparison", "data_page", "training", "unknown"]);
   assertEnum(row, "answer_source_model", ["deterministic_logic", "user_input_transform", "stable_public_data", "periodic_public_data", "live_external_data", "licensed_or_proprietary_data", "official_or_marketplace_inventory", "subjective_or_ugc", "unknown"]);
   assertEnum(row, "supply_control", ["strong", "medium", "weak", "unknown"]);
+  assertEnum(row, "google_native_answer_risk", ["low", "medium", "high", "unknown"]);
   assert(row.canonical_key_components, `${row.keyword} missing canonical key components`);
 }
 
@@ -193,11 +198,12 @@ run("cluster-recommendations.mjs", [
   "--out-dir", siteDirV2,
 ]);
 const v2Recommendations = readJsonl(path.join(siteDirV2, "serp-review-recommendation-keywords.jsonl"));
+const v2Rejected = readJsonl(path.join(siteDirV2, "serp-review-rejected-keywords.jsonl"));
 assertRequiredRecommendationFields(v2Recommendations);
 assert(v2Recommendations.every((row) => row.schema_version === 2), "v2 recommendations should keep schema_version 2");
 const hex = v2Recommendations.find((row) => row.keyword === "hex to decimal");
-assert(hex?.priority === "P0", "deterministic converter should remain P0 eligible");
-assert(hex?.volume === 18100, "v2 final output should rehydrate metrics from metadata");
+assert(!hex, "simple deterministic converter should be filtered out as Google-native high risk");
+assert(v2Rejected.some((row) => row.keyword === "hex to decimal" && row.google_native_answer_risk === "high"), "rejected JSONL should audit filtered deterministic converter");
 const printer = v2Recommendations.find((row) => row.keyword === "printer offline");
 assert(printer, "route_hint=reject alone should not remove a valid troubleshooting workflow");
 assert(printer.derived_route !== "reject", "route_hint=reject alone must not force final reject");
@@ -207,12 +213,20 @@ assert(sportsRows.every((row) => row.priority === "P2" && row.derived_cap === "c
 assert(!sportsRows[0].canonical_opportunity_key.includes("live_external_data"), "canonical key must exclude answer source risk fields");
 assert(!sportsRows[0].canonical_opportunity_key.includes("weak"), "canonical key must exclude supply fields");
 const flight = v2Recommendations.find((row) => row.keyword === "ua123 flight status");
-assert(flight?.priority === "P2", "official-source flight status should not become P0");
+assert(!flight, "Google-native flight status lookup should be filtered out");
+assert(v2Rejected.some((row) => row.keyword === "ua123 flight status" && row.google_native_answer_risk === "high"), "rejected JSONL should audit filtered flight status lookup");
+const timeZone = v2Recommendations.find((row) => row.keyword === "time zone converter");
+assert(timeZone?.priority === "P2" && timeZone.derived_cap === "cap_P2", "medium Google-native converter risk should cap to P2");
+const minecraftCircle = v2Recommendations.find((row) => row.keyword === "minecraft circle generator");
+assert(minecraftCircle, "brand/IP-adjacent auxiliary tools should not be rejected solely for containing a game brand");
+assert(minecraftCircle.priority === "P1", "Minecraft build helper should remain a capped review candidate, not P0 or reject");
+assert(minecraftCircle.legal_or_platform_risk === "medium", "brand/IP helper should preserve medium naming/platform risk for review");
 const mystery = v2Recommendations.find((row) => row.keyword === "mystery live price checker");
 assert(mystery?.priority === "P2" && mystery.derived_cap === "cap_P2", "unknown critical fields cannot support P0");
 assert(v2Recommendations.every((row) => !(row.priority === "P0" && row.answer_source_model === "live_external_data" && ["weak", "unknown"].includes(row.supply_control))), "weak live/external supply cannot become P0");
 assert(v2Recommendations.every((row) => !(row.priority === "P0" && row.permutation_inflation === "high" && ["weak", "unknown"].includes(row.supply_control))), "high permutation weak supply cannot become P0");
 assert(v2Recommendations.every((row) => row.priority !== "P0" || row.derived_cap === "none"), "rehydrated metrics must not promote capped rows above their cap");
+assert(v2Recommendations.every((row) => row.priority !== "P0" || row.google_native_answer_risk === "low"), "Google-native risk must block P0");
 const opportunityClusters = readJson(path.join(siteDirV2, "opportunity-clusters.json"));
 assert(opportunityClusters.summary.recommendedKeywords === v2Recommendations.length, "opportunity cluster summary should match v2 keyword output");
 

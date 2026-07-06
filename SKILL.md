@@ -24,6 +24,7 @@ Do not reduce screening quality to save tokens, time, or agent work. Token spend
 - Use subagents for first-pass and second-pass screening whenever the workflow reaches those stages.
 - Do not replace semantic screening with scripts, regex, keyword lists, or local shortcuts because the keyword set is large.
 - Use scripts only for deterministic work: scraping, dedupe, chunking, merging, canonical key generation, metric rehydration, priority derivation, validation, and report writing.
+- Deterministic scripts may flag or cap risk inferred from keyword patterns, but must not hard-delete a candidate solely from regex or keyword text. Hard deletion belongs to agent judgment, explicit policy/rights violations, invalid rows, or derived no-supply/no-differentiation findings.
 - If the run is too large, slow, expensive, or operationally blocked, pause with a clear status and ask for a scope decision instead of silently degrading the method.
 - Do not summarize or sample a chunk when the workflow requires full chunk screening. Every chunk must be processed or explicitly marked failed/skipped in the run index.
 
@@ -208,6 +209,8 @@ The input rows are keyword-only. Do not read raw rows, unique-keywords.jsonl, re
 Output plausible SERP-verification keywords only as JSONL to <domain-dir>/first-pass-results/chunk-XX.jsonl using the schema-v2 first-pass shape.
 Base the decision only on the keyword text, rubric, and schema. Do not infer from SEMrush metrics.
 Judge supply model and permutation risk, but use `unknown` instead of pretending certainty.
+Always judge `google_native_answer_risk`: reject or mark high risk for simple calculator/converter/translator/lookup/date/symbol/code/fact queries that Google can answer directly. Keyword-pattern risk from scripts is only a signal; deletion requires agent judgment.
+Do not reject solely because a keyword contains a game, software, platform, or entertainment brand. Keep/cap auxiliary tools when the user wants an original utility, planner, checker, calculator, generator, or workflow; reject only piracy/leaks/cracked downloads/official asset extraction/impersonation.
 Do not assign final P0/P1/P2. Use `route_hint` and `confidence` only.
 Write explanatory fields such as `reason` in Chinese.
 Be strict; include no rejected keywords. Do not modify files outside this output file.
@@ -255,6 +258,8 @@ Do not classify by topic category alone. Judge how the answer is produced, who n
 Do not downgrade merely because the keyword belongs to sports, travel, finance, entertainment, or local data.
 Do not assign final priority. `priority_hint`, `subagent_cap_hint`, and `route_hint` are evidence only.
 Use canonical key components for task identity only; do not put supply, risk, winner, maintenance, cap, or priority into the key components.
+Always judge `google_native_answer_risk`: high risk should usually be rejected by the reviewing agent when there is no durable independent value; medium risk cannot support P0. Keyword-pattern risk from scripts is only a cap/review signal, not a deletion rule.
+Do not reject solely because a keyword contains a game, software, platform, or entertainment brand. Keep/cap auxiliary tools when the user wants an original utility, planner, checker, calculator, generator, or workflow; reject only piracy/leaks/cracked downloads/official asset extraction/impersonation.
 Write explanatory fields such as `reason`, `recommended_shape`, `monetization`, and `subagent_cap_reason` in Chinese.
 Do not preserve recall for weak opportunities, but do not reject low-CPC or low-volume keywords merely for being small.
 Use `unknown` where keyword-only evidence is weak. Unknown does not mean reject, but unknown cannot support P0.
@@ -278,6 +283,7 @@ Do not shrink the final list just to make it shorter. Cluster every second-pass 
 Read `references/priority-derivation.md` when diagnosing or editing final priority behavior.
 The cluster script generates canonical keys from task identity fields, derives final route/cap/priority, and rehydrates metrics from `unique-keywords.jsonl` after screening.
 Subagent `priority_hint`, `subagent_cap_hint`, and `route_hint` are evidence, not final judgment.
+Regex or keyword-pattern risk inferred by the cluster script may cap a row to P2 and add audit fields, but must not hard-delete it by itself. Hard deletion requires explicit agent reject evidence or a derived finding that the candidate is unsafe, prohibited, invalid, or has no plausible independent supply/value-add.
 SEMrush metrics can sort inside an allowed priority band but must not override reject or cap rules.
 Markdown reports use Chinese headings, compact supply-model badges, labels, and priority explanations by default.
 

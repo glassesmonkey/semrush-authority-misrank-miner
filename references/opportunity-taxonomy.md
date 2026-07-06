@@ -22,6 +22,8 @@ lookup/entity_pair/event_player_stats/sortable_data_page
 
 Do not put supply control, answer source model, natural winner, maintenance burden, legal risk, priority, or cap fields into the key. Those fields can drift between reviewers and belong in priority derivation, not identity.
 
+Some canonical tasks, such as unit conversion, flight status, holiday dates, symbols, color codes, or area codes, can still be valid task identities while being poor recommendations. Judge Google native answer risk in the schema and priority derivation fields, not in the canonical key.
+
 ## Examples
 
 - Team A vs Team B player stats: `lookup/entity_pair/event_player_stats/sortable_data_page`

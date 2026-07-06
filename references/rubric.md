@@ -40,6 +40,51 @@ Valid advantages include calculation, personalization, aggregation, filtering, v
 
 Weak advantages include restating raw facts, copying official data, summarizing what a specialized data provider already does, or attaching a tiny widget to an article-shaped page.
 
+## Brand and IP Intent Gate
+
+Do not reject a keyword merely because it contains a game, movie, book, software, sports, or platform brand. First distinguish the user's task from the rights risk.
+
+Usually keep or cap for review when the keyword is an auxiliary tool, planner, checker, calculator, generator, or workflow that helps users do something original with their own inputs:
+
+- `minecraft circle generator` -> block-circle blueprint generator for builds;
+- `pokemon type calculator` -> matchup calculator;
+- `dnd dice roller` -> tabletop utility;
+- `discord timestamp generator` -> platform formatting tool;
+- `excel formula generator` -> workflow helper.
+
+These are not the same as piracy or copyrighted-content acquisition. Treat them as possible opportunities when the product can be built with original UI, user-provided inputs, deterministic logic, public compatibility facts, or created-from-scratch assets.
+
+Apply legal/platform risk, naming risk, and natural-winner checks:
+
+- Use medium risk when a branded ecosystem is involved and the page must avoid official logos, official art/assets, trademark-forward naming, or implied affiliation.
+- Prefer neutral naming such as `Block Circle Generator for Minecraft Builds` over presenting the tool as official.
+- Cap to P1/P2 when SERP competition, app-store/tool incumbents, or brand-policy constraints need verification.
+- Hard reject only when the query itself asks for piracy, ROMs, cracked APKs, leaks, copyrighted downloads/streams, official asset extraction, cheats that violate platform rules, impersonation, or an official-only action.
+
+## Google Native Answer Gate
+
+Many keywords look attractive because they are "tool-shaped", but Google can now answer them directly with AI Overview, direct-answer cards, or native widgets. These are usually bad targets for this workflow because the independent page has no clear supply advantage and little reason to win clicks.
+
+Keyword-pattern matches are warning signals, not deletion rules. A deterministic script may annotate or cap these candidates, but it must not remove them solely because the keyword matches a calculator/converter/translator/symbol/date/code pattern. Removal should come from agent judgment or an explicit derived finding that there is no independent value-add.
+
+Hard reject or mark high risk when the keyword is mainly:
+
+- a simple math/unit/time/currency conversion;
+- a generic translator or language-pair translation;
+- a single symbol, color code, airport code, phone/area/country code, postal code, date, holiday, prayer time, or fact lookup;
+- a one-answer calculator where the only value is showing the number;
+- a map/fact query where Google Maps or a knowledge panel is the natural answer.
+
+Keep or cap to review only when the keyword itself demands durable value beyond the direct answer:
+
+- batch/file/API transformation;
+- domain-specific variables that materially change the output;
+- step-by-step learning or practice mode;
+- diagnostic branching, checklist, planner, or artifact generation;
+- comparison, filtering, historical views, visualization, export, or a reusable dataset that Google does not provide in the SERP.
+
+Use `google_native_answer_risk=high` when the direct-answer risk is the main product problem. Use `medium` when the opportunity might survive only with explicit extra value. High risk cannot be P0/P1. Medium risk cannot be P0.
+
 ## Permutation Inflation
 
 When many keywords differ only by interchangeable entities, dates, locations, products, teams, routes, or event instances, infer the canonical opportunity before judging priority.
@@ -67,6 +112,7 @@ A candidate may be P0 only when all are true:
 6. Legal, IP, and platform risk is acceptable.
 7. The keyword is not merely one permutation inside a large entity/date/location/event matrix.
 8. If official or specialized data providers are the natural winner, explicit independent value-add exists.
+9. Google native answer risk is low.
 
 ## Unknown Handling
 
@@ -83,7 +129,7 @@ Unknown in supply control, natural winner, maintenance burden, legal/platform ri
 - E. Asset or inspiration library: ideas, examples, templates, images, design references, prompts, galleries.
 - F. Configuration or decision: setup, build, kit, gear/equipment, buying checklist, comparison, software/SaaS selection.
 - G. Seed only: broad theme, useful for more long-tail mining but not directly recommendable.
-- H. Reject: brand navigation, adult, piracy, leaks, local near-me service, high-risk YMYL, pure definition/QA, celebrity/news, IP/copyright-heavy.
+- H. Reject: brand navigation, adult, piracy, leaks, local near-me service, high-risk YMYL, pure definition/QA, celebrity/news, or IP/copyright-heavy acquisition/impersonation intent.
 
 ## Priority
 
@@ -112,7 +158,7 @@ Important:
 - Topic nouns like `3d printer`, `interior design`, and `dog walker` are G unless the keyword itself implies an action or output.
 - Supply-side advantages, such as CC0 images or public data, are notes, not reasons by themselves.
 - Prefer high-value low-volume SaaS/configuration opportunities over weak high-volume information queries.
-- Preserve low-CPC native tool opportunities if the intent is unmistakably tool-shaped.
+- Preserve native tool opportunities only when the value is not just a Google-answerable calculation, conversion, translation, or lookup.
 
 ## Second-Pass Rule
 
@@ -123,20 +169,26 @@ Hard reject:
 - Broad topic nouns or seed terms.
 - Pure informational definitions, simple Q&A, trivia, celebrity/news, memes, lyrics, plot queries.
 - Brand/navigation terms unless the user is comparing alternatives, pricing, competitors, or a clearly decision-oriented workflow.
-- Copyright/IP-heavy games, movies, anime, books, music, songs, characters, ROMs, leaks, or piracy terms.
+- Copyright/IP-heavy acquisition terms such as ROMs, cracked APKs, leaks, free streams/downloads, official asset extraction, lyrics, scripts, full books, or requests to impersonate official products.
 - Adult, medical diagnosis/treatment, legal advice, finance/investment advice, and other high-risk YMYL.
 - Local-intent service terms where a directory or map pack is the natural product.
 - Keywords where the best page would still be mostly an article with a small widget attached.
 
 Keep:
 
-- Exact calculator/converter/checker/lookup/generator intent.
+- Exact calculator/converter/checker/lookup/generator intent only when there is meaningful value beyond a direct SERP answer.
 - Troubleshooting and diagnostic workflows with clear inputs and outputs.
 - SaaS and product comparison or pricing intent.
 - Salary, cost, and quote estimators where variables materially change the answer.
 - Templates and planners where the user wants a finished artifact.
 - Libraries where scalable assets and filters are core to the experience.
 - Training/practice tools where interactivity or a followable plan beats static text.
+- Brand/IP-adjacent helper tools when the user intent is a utility or workflow and the implementation can avoid official assets, implied affiliation, and copyrighted-content distribution.
+
+Reject or cap:
+
+- Generic unit converters, calculators, translators, color/symbol/date/code lookups, and single-answer utilities where Google can answer immediately.
+- "Tiny widget attached to an article" ideas unless the widget is the main product and has clear independent differentiation.
 
 ## Output JSONL
 
