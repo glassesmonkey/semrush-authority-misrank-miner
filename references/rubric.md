@@ -44,20 +44,14 @@ Weak advantages include restating raw facts, copying official data, summarizing 
 
 Do not reject a keyword merely because it contains a game, movie, book, software, sports, or platform brand. First distinguish the user's task from the rights risk.
 
-Usually keep or cap for review when the keyword is an auxiliary tool, planner, checker, calculator, generator, or workflow that helps users do something original with their own inputs:
-
-- `minecraft circle generator` -> block-circle blueprint generator for builds;
-- `pokemon type calculator` -> matchup calculator;
-- `dnd dice roller` -> tabletop utility;
-- `discord timestamp generator` -> platform formatting tool;
-- `excel formula generator` -> workflow helper.
+Usually keep or cap for review when the keyword is an auxiliary tool, planner, checker, calculator, generator, or workflow that helps users do something original with their own inputs. Judge the task pattern, not whether it resembles a remembered keyword.
 
 These are not the same as piracy or copyrighted-content acquisition. Treat them as possible opportunities when the product can be built with original UI, user-provided inputs, deterministic logic, public compatibility facts, or created-from-scratch assets.
 
 Apply legal/platform risk, naming risk, and natural-winner checks:
 
 - Use medium risk when a branded ecosystem is involved and the page must avoid official logos, official art/assets, trademark-forward naming, or implied affiliation.
-- Prefer neutral naming such as `Block Circle Generator for Minecraft Builds` over presenting the tool as official.
+- Prefer descriptive, non-official naming that states the user task without presenting the tool as official.
 - Cap to P1/P2 when SERP competition, app-store/tool incumbents, or brand-policy constraints need verification.
 - Hard reject only when the query itself asks for piracy, ROMs, cracked APKs, leaks, copyrighted downloads/streams, official asset extraction, cheats that violate platform rules, impersonation, or an official-only action.
 
@@ -89,14 +83,7 @@ Use `google_native_answer_risk=high` when the direct-answer risk is the main pro
 
 When many keywords differ only by interchangeable entities, dates, locations, products, teams, routes, or event instances, infer the canonical opportunity before judging priority.
 
-Examples:
-
-- `team A vs team B player stats` -> entity-pair event stats lookup
-- `UA123 flight status` -> flight status lookup
-- `artist city tickets` -> event ticket inventory lookup
-- `city zip code` -> postal code lookup
-- `unit A to unit B` -> unit converter
-- `holiday year` -> date calendar lookup
+Common permutation patterns include entity-pair event stats, single-entity live status, entity-location inventory, location code lookups, unit-pair converters, and date-bound calendar lookups.
 
 Large volume from permutations should not raise priority by itself. It matters only after the canonical opportunity passes supply control, maintenance, and natural-winner checks.
 
@@ -155,7 +142,7 @@ Recommend only if all are true:
 Important:
 
 - Do not turn every topic into a fake tool.
-- Topic nouns like `3d printer`, `interior design`, and `dog walker` are G unless the keyword itself implies an action or output.
+- Broad topic nouns are G unless the keyword itself implies an action or output.
 - Supply-side advantages, such as CC0 images or public data, are notes, not reasons by themselves.
 - Prefer high-value low-volume SaaS/configuration opportunities over weak high-volume information queries.
 - Preserve native tool opportunities only when the value is not just a Google-answerable calculation, conversion, translation, or lookup.
