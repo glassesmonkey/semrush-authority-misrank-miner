@@ -603,6 +603,21 @@ async function waitForTemplate(getTemplate, timeoutMs) {
   return null;
 }
 
+async function waitForInitialRpcResponse(getResponse, timeoutMs) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const response = getResponse();
+    if (response) return response;
+    await sleep(100);
+  }
+  return null;
+}
+
+function decodeResponseBody(bodyResult) {
+  if (!bodyResult || typeof bodyResult.body !== "string") return "";
+  return bodyResult.base64Encoded ? Buffer.from(bodyResult.body, "base64").toString("utf8") : bodyResult.body;
+}
+
 function writeJsonl(filePath, rows) {
   fs.writeFileSync(filePath, rows.map((row) => JSON.stringify(row)).join("\n") + (rows.length ? "\n" : ""));
 }
@@ -682,12 +697,17 @@ async function main() {
     await cdp.connect();
 
     let rpcTemplate = null;
+    let initialRpcRequestId = null;
+    const candidateRpcRequestIds = new Set();
+    const responseMetaByRequestId = new Map();
+    const responseBodyByRequestId = new Map();
     cdp.on("Network.requestWillBeSent", async (params) => {
       const request = params.request || {};
       if (request.method !== "POST") return;
       const requestUrl = String(request.url || "");
       const initialPostData = String(request.postData || "");
       if (!requestUrl.includes("/dpa/rpc") && !initialPostData.includes("organic.Positions")) return;
+      if (params.requestId) candidateRpcRequestIds.add(params.requestId);
 
       let postData = initialPostData;
       if (!postData && params.requestId) {
@@ -701,11 +721,33 @@ async function main() {
 
       const body = parseRpcBody(postData);
       if (!body) return;
+      if (!initialRpcRequestId && params.requestId) initialRpcRequestId = params.requestId;
       rpcTemplate = {
         endpoint: request.url,
         headers: safeHeaderSubset(request.headers || {}),
         body,
       };
+    });
+
+    cdp.on("Network.responseReceived", (params) => {
+      if (!candidateRpcRequestIds.has(params.requestId)) return;
+      const response = params.response || {};
+      responseMetaByRequestId.set(params.requestId, {
+        ok: Number(response.status) >= 200 && Number(response.status) < 300,
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+      });
+    });
+
+    cdp.on("Network.loadingFinished", async (params) => {
+      if (!candidateRpcRequestIds.has(params.requestId)) return;
+      try {
+        const bodyResult = await cdp.send("Network.getResponseBody", { requestId: params.requestId });
+        responseBodyByRequestId.set(params.requestId, bodyResult);
+      } catch {
+        // If Chrome cannot provide the body, fall back to the manual fetch path.
+      }
     });
 
     await cdp.send("Network.enable", { maxPostDataSize: 10_000_000 });
@@ -726,6 +768,20 @@ async function main() {
     const allRows = append ? readJsonl(rawRowsPath) : [];
     const pageSignatures = new Set();
     const pageStats = Array.isArray(previousSummaryForAppend.pageStats) ? previousSummaryForAppend.pageStats : [];
+    const initialRpcResponse = !append && startPage === 1
+      ? await waitForInitialRpcResponse(() => {
+        if (!initialRpcRequestId || !responseBodyByRequestId.has(initialRpcRequestId)) return null;
+        const meta = responseMetaByRequestId.get(initialRpcRequestId) || {};
+        const bodyResult = responseBodyByRequestId.get(initialRpcRequestId);
+        return {
+          ok: meta.ok,
+          status: meta.status,
+          statusText: meta.statusText,
+          url: meta.url,
+          text: decodeResponseBody(bodyResult),
+        };
+      }, Number(args["initial-response-timeout-ms"] || 5000))
+      : null;
 
     if (append && allRows.length) {
       const rowsByPage = new Map();
@@ -745,7 +801,9 @@ async function main() {
     for (let pageIndex = startPage - 1; pageIndex < maxPages; pageIndex += 1) {
       const pageNumber = pageIndex + 1;
       const body = cloneWithPagination(template.body, pageIndex, pageSize);
-      const response = await evaluateFetch(cdp, template.endpoint, template.headers, body);
+      const response = pageNumber === 1 && initialRpcResponse
+        ? initialRpcResponse
+        : await evaluateFetch(cdp, template.endpoint, template.headers, body);
       if (!response || typeof response.text !== "string") {
         throw new Error("RPC fetch returned no response text.");
       }
@@ -797,7 +855,13 @@ async function main() {
       allRows.push(...extracted.rows);
       summary.pagesFetched = pageNumber;
       summary.rawRows = allRows.length;
-      pageStats.push({ page: pageNumber, rows: extracted.rows.length, status: "ok", arrayPath: extracted.arrayPath });
+      pageStats.push({
+        page: pageNumber,
+        rows: extracted.rows.length,
+        status: "ok",
+        arrayPath: extracted.arrayPath,
+        source: response === initialRpcResponse ? "initial_browser_rpc" : "manual_fetch",
+      });
       writeJsonl(rawRowsPath, allRows);
       fs.writeFileSync(summaryPath, JSON.stringify({ ...summary, pageStats }, null, 2) + "\n");
       console.log(JSON.stringify({ domain, page: pageNumber, rows: extracted.rows.length, totalRows: allRows.length }));

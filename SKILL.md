@@ -138,6 +138,14 @@ Do not scrape, spawn subagents, or fabricate a failed run while waiting for the 
 
 Use the bundled scraper. It captures the `organic.Positions` RPC request from the page and does not write cookies, API keys, or the captured RPC payload to disk.
 
+Quota discipline:
+
+- Treat every SEMrush Organic Positions page load and RPC fetch as potentially quota-bearing.
+- Do not use the scraper itself as a quota probe. If quota may be exhausted, first inspect the existing CDP browser state for dashboard/quota text or ask the user to confirm the Organic Positions table is visible.
+- Do not rerun completed domains just to confirm availability. Resume only from the durable `nextNotStarted` target unless a specific domain has a verified incomplete or failed state.
+- Do not create temporary target scrapes to test access. A failed probe can still consume account-side quota even if it is later discarded.
+- The scraper is expected to reuse the initial browser page-1 RPC response when Chrome exposes the response body; falling back to a manual page-1 fetch is only for cases where CDP cannot provide that initial response.
+
 SEMrush treats root domains and subdomains as different search scopes. If the user gives `gamefaqs.gamespot.com`, keep that exact value as `q` and scrape with `searchType=subdomain`; do not collapse it to `gamespot.com` or leave `searchType=domain`. The scraper auto-detects common subdomain targets, inherits `searchType=subdomain` from a provided SEMrush URL, and also accepts `--search-type subdomain` when you need to be explicit.
 
 ```bash
